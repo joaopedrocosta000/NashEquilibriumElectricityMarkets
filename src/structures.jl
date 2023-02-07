@@ -5,32 +5,12 @@ struct ThermalGenerator
     owner::Int64
     bus::Int64
     zone::Int64
-    g_max::Float64
-    g_min::Float64
+    g_max::Vector{Float64}
+    g_min::Vector{Float64}
     ramp_up::Float64
     ramp_down::Float64
     uvc::Float64
     fuel::String
-end
-
-struct SolarGenerator
-    number::Int64
-    name::String
-    owner::Int64
-    bus::Int64
-    zone::Int64
-    g_max::Vector{Float64}
-    g_min::Vector{Float64}
-end
-
-struct WindGenerator
-    number::Int64
-    name::String
-    owner::Int64
-    bus::Int64
-    zone::Int64
-    g_max::Vector{Float64}
-    g_min::Vector{Float64}
 end
 
 struct HydroGenerator
@@ -48,7 +28,6 @@ struct HydroGenerator
     q_min::Float64
     v_max::Float64
     v_min::Float64
-    s_max::Float64
     v_initial::Float64
     q_initial::Vector{Float64}
     s_initial::Vector{Float64}
@@ -62,8 +41,9 @@ end
 
 struct Bus
     number::Int64
-    name::String
     zone::Int64
+    name::String
+    deficit_cost::Float64
 end
 
 struct Zone
@@ -92,9 +72,7 @@ struct Company
 end
 
 struct Load
-    value::Vector{Float64}
     bus::Int64
     zone::Int64
+    value::Vector{Float64}
 end
-
-
