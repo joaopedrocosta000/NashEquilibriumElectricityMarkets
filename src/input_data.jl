@@ -13,6 +13,24 @@ function create_bus_structs(path::String)
     return bus
 end
 
+"Creates a vector of zone structs."
+function create_zone_structs(path::String)
+
+    zone_df = CSV.read(joinpath(path, "Bus.csv"), DataFrame)
+
+    unique_number = unique(zone_df[:, "Zone"])
+    unique_name   = unique(zone_df[:, "Zone_Name"])
+    
+    Z    = length(unique_number)
+    zone = Vector{Bus}(undef, Z)
+
+    for z in 1:Z
+        zone[z] = Zone(unique_number[z], unique_name[z])
+    end
+
+    return zone
+end
+
 "Creates a vector of lines structs."
 function create_line_structs(path::String)
 
@@ -121,3 +139,67 @@ function create_hydro_structs(path::String)
 
     return hydro
 end
+
+function create_company_structs(path::String, T::Int64)
+
+    thermal_df = CSV.read(joinpath(path, "Thermal.csv"), DataFrame)
+    hydro_df   = CSV.read(joinpath(path, "Hydro.csv"), DataFrame)
+
+    unique_number = unique(vcat(thermal_df[:, "GENCO"], hydro_df[:, "GENCO"]))
+    unique_name   = unique(vcat(thermal_df[:, "GENCO_Name"], hydro_df[:, "GENCO_Name"]))
+
+    company_df = DataFrames.sort(DataFrame(GENCO = unique_number, GENCO_Name = unique_name), "GENCO")
+    company_df = classify_price_makers(thermal_df, hydro_df, company_df, T)
+    C       = length(unique_number)
+    company = Vector{Company}(undef, C)
+
+    for c in 1:C
+        company[c] = Company(company_df[c, "GENCO"], String(company_df[c, "GENCO_Name"]), company_df[c, "Price_Maker"])
+    end
+    
+    return company
+end
+
+is_small_gen(name::Sl) where {Sl} = split(name, " ")[1] == "Small"
+
+function classify_price_makers(thermal_df::DataFrame, hydro_df::DataFrame, company_df::DataFrame, T::Int64) 
+
+    ρ           = hydro_df[:, "p"]
+    q_max       = hydro_df[:, "Qhmax"]
+
+    g_max = q_max .* ρ
+
+    thermal_genco_df = DataFrame(GENCO = thermal_df[:, "GENCO"], GENCO_Name = thermal_df[:, "GENCO_Name"],
+                                    Capacity = maximum(Matrix(thermal_df[:, 10:10 + T - 1]), dims = 2)[:, 1])
+    
+    hydro_genco_df = DataFrame(GENCO = hydro_df[:, "GENCO"], GENCO_Name = hydro_df[:, "GENCO_Name"],
+                                    Capacity = g_max)
+
+    genco_df              = groupby(vcat(thermal_genco_df, hydro_genco_df), "GENCO")
+    sum_genco_capacity_df = combine(genco_df, :Capacity => sum)                                
+
+    sum_genco_capacity_df =  DataFrames.sort(rename(hcat(company_df[:, "GENCO_Name"], sum_genco_capacity_df), Dict("x1" => "GENCO_Name")), "Capacity_sum", rev = true)
+
+    price_maker_candidates_df = filter(:GENCO_Name => !is_small_gen, sum_genco_capacity_df)
+    total_capacity            = sum(price_maker_candidates_df[:, "Capacity_sum"])
+
+    percentual_capacity = 0
+    C                   = size(sum_genco_capacity_df, 1)
+    price_maker         = Vector{Bool}(undef, C)
+    price_maker         .= false
+    
+    i = 1
+    while percentual_capacity < 0.6
+        if !is_small_gen(sum_genco_capacity_df[i, "GENCO_Name"])
+            percentual_capacity = percentual_capacity + sum_genco_capacity_df[i, "Capacity_sum"] / total_capacity
+            price_maker[i] = true
+        end
+        i = i + 1
+    end
+
+    sum_genco_capacity_df = hcat(sum_genco_capacity_df, price_maker)
+    DataFrames.sort!(sum_genco_capacity_df, "GENCO")
+
+    return rename(sum_genco_capacity_df, Dict("x1" => "Price_Maker"))
+end
+

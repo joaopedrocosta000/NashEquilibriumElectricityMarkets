@@ -4,6 +4,6 @@ module NashEquilibriumElectricityMarkets
     using BilevelJuMP
 
     include("structures.jl")
-    include("treat_input_data.jl")
+    include("input_data.jl")
 
 end 

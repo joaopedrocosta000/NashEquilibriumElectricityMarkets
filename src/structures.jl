@@ -69,6 +69,7 @@ end
 struct Company
     number::Int64
     name::String
+    price_maker::Bool
 end
 
 struct Load
