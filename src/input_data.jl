@@ -22,7 +22,7 @@ function create_zone_structs(path::String)
     unique_name   = unique(zone_df[:, "Zone_Name"])
     
     Z    = length(unique_number)
-    zone = Vector{Bus}(undef, Z)
+    zone = Vector{Zone}(undef, Z)
 
     for z in 1:Z
         zone[z] = Zone(unique_number[z], unique_name[z])
@@ -50,12 +50,12 @@ end
 function create_exchange_structs(path::String)
 
     exchange_df = CSV.read(joinpath(path, "LinesZ.csv"), DataFrame)
-    E           = size(line_df, 1)
+    E           = size(exchange_df, 1)
 
     exchange    = Vector{Exchange}(undef, E)
 
     for e in 1:E
-        exchange[e] = Exchange(line_df[e, "Line"], line_df[e, "from"], line_df[e, "to"], line_df[e, "Fmax"])
+        exchange[e] = Exchange(exchange_df[e, "Line"], exchange_df[e, "from"], exchange_df[e, "to"], exchange_df[e, "Fmax"])
     end
 
     return exchange
@@ -70,7 +70,7 @@ function create_load_structs(path::String)
     load    = Vector{Load}(undef, D)
 
     for d in 1:D
-        load[d] = Load(load_df[d, "Bus"], load_df[d, "Zone"], load_df[d, 3:end])
+        load[d] = Load(load_df[d, "Bus"], load_df[d, "Zone"], Vector(load_df[d, 3:end]))
     end
 
     return load
@@ -82,12 +82,12 @@ function create_thermal_structs(path::String, T::Int64)
     thermal_df = CSV.read(joinpath(path, "Thermal.csv"), DataFrame)
     I          = size(thermal_df, 1)
 
-    thermal    = Vector{Thermal}(undef, I)
+    thermal    = Vector{ThermalGenerator}(undef, I)
 
     for i in 1:I
         thermal[i] = ThermalGenerator(thermal_df[i, "TGenerator"], thermal_df[i, "TGenerator_cod"], thermal_df[i, "Name"],
                                         thermal_df[i, "GENCO"], thermal_df[i, "Gtbus"], thermal_df[i, "Gtzone"], 
-                                        thermal_df[i, 10:10 + T - 1], thermal_df[i, 10 + T:10 + 2T - 1],
+                                        Vector(thermal_df[i, 10:10 + T - 1]), Vector(thermal_df[i, 10 + T:10 + 2T - 1]),
                                         thermal_df[i, "Rup"], thermal_df[i, "Rdown"], thermal_df[i, "UVC"], thermal_df[i, "Fuel"])
     end
 
@@ -140,6 +140,7 @@ function create_hydro_structs(path::String)
     return hydro
 end
 
+"Creates a vector of company structs."
 function create_company_structs(path::String, T::Int64)
 
     thermal_df = CSV.read(joinpath(path, "Thermal.csv"), DataFrame)
@@ -160,8 +161,10 @@ function create_company_structs(path::String, T::Int64)
     return company
 end
 
+"Verifies if a generator is a small gen."
 is_small_gen(name::Sl) where {Sl} = split(name, " ")[1] == "Small"
 
+"Classifies companies as prices makers or price takers."
 function classify_price_makers(thermal_df::DataFrame, hydro_df::DataFrame, company_df::DataFrame, T::Int64) 
 
     ρ           = hydro_df[:, "p"]
@@ -178,7 +181,8 @@ function classify_price_makers(thermal_df::DataFrame, hydro_df::DataFrame, compa
     genco_df              = groupby(vcat(thermal_genco_df, hydro_genco_df), "GENCO")
     sum_genco_capacity_df = combine(genco_df, :Capacity => sum)                                
 
-    sum_genco_capacity_df =  DataFrames.sort(rename(hcat(company_df[:, "GENCO_Name"], sum_genco_capacity_df), Dict("x1" => "GENCO_Name")), "Capacity_sum", rev = true)
+    sum_genco_capacity_df =  DataFrames.sort(rename(hcat(company_df[:, "GENCO_Name"], sum_genco_capacity_df), Dict("x1" => "GENCO_Name")), 
+                                                "Capacity_sum", rev = true)
 
     price_maker_candidates_df = filter(:GENCO_Name => !is_small_gen, sum_genco_capacity_df)
     total_capacity            = sum(price_maker_candidates_df[:, "Capacity_sum"])
@@ -203,3 +207,20 @@ function classify_price_makers(thermal_df::DataFrame, hydro_df::DataFrame, compa
     return rename(sum_genco_capacity_df, Dict("x1" => "Price_Maker"))
 end
 
+"Create a dictionary with the input structures."
+function create_input_data(path::String, T::Int64)
+
+    dict_input = Dict()
+
+    @info("Creating input...")
+    dict_input["bus"]      = create_bus_structs(path)
+    dict_input["zone"]     = create_zone_structs(path)
+    dict_input["line"]     = create_line_structs(path)
+    dict_input["exchange"] = create_exchange_structs(path)
+    dict_input["load"]     = create_load_structs(path)
+    dict_input["thermal"]  = create_thermal_structs(path, T)
+    dict_input["hydro"]    = create_hydro_structs(path)
+    dict_input["company"]  = create_company_structs(path, T)
+
+    return dict_input
+end
