@@ -55,6 +55,7 @@ struct Line
     number::Int64
     from::Int64
     to::Int64
+    f_min::Float64
     f_max::Float64
     reactance::Float64
 end
@@ -63,6 +64,7 @@ struct Exchange
     number::Int64
     from::Int64
     to::Int64
+    f_min::Float64
     f_max::Float64
 end
 

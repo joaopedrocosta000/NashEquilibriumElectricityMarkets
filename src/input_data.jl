@@ -40,7 +40,7 @@ function create_line_structs(path::String)
     line    = Vector{Line}(undef, L)
 
     for l in 1:L
-        line[l] = Line(line_df[l, "Line"], line_df[l, "from"], line_df[l, "to"], line_df[l, "Fmax"], line_df[l, "x"])
+        line[l] = Line(line_df[l, "Line"], line_df[l, "from"], line_df[l, "to"], line_df[l, "Fmin"], line_df[l, "Fmax"], line_df[l, "x"])
     end
 
     return line
@@ -55,7 +55,7 @@ function create_exchange_structs(path::String)
     exchange    = Vector{Exchange}(undef, E)
 
     for e in 1:E
-        exchange[e] = Exchange(exchange_df[e, "Line"], exchange_df[e, "from"], exchange_df[e, "to"], exchange_df[e, "Fmax"])
+        exchange[e] = Exchange(exchange_df[e, "Line"], exchange_df[e, "from"], exchange_df[e, "to"], exchange_df[e, "Fmin"], exchange_df[e, "Fmax"])
     end
 
     return exchange
