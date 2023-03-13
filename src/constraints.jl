@@ -33,12 +33,12 @@ end
 "Create grid generation constraints for generators (hydro and thermal) of specific owner based on quantity bids."
 function add_generation_bid_constraints!(model::Ml, T::Int64,
                                                 hydro::Vector{HydroGenerator}, 
-                                                thermal::Vector{ThermalGenerator};
-                                                grid::Bool = true) where {Ml}
+                                                thermal::Vector{ThermalGenerator},
+                                                problem::String) where {Ml}
 
     I, J = length(thermal), length(hydro)
     
-    if grid
+    if problem == "grid"
         @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_grid][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ model[:μh][t, hydro[j].number])
     else
@@ -51,12 +51,12 @@ end
 function add_generation_bid_constraints!(model::Ml, T::Int64,
                                                 hydro::Vector{HydroGenerator}, 
                                                 thermal::Vector{ThermalGenerator},
-                                                QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64};
-                                                grid::Bool = true) where {Ml}
+                                                QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64},
+                                                problem::String) where {Ml}
                                             
     I, J = length(thermal), length(hydro)     
 
-    if grid
+    if problem == "grid"
         @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_grid][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
     else
@@ -68,12 +68,12 @@ end
 "Create grid generation constraints for generators (hydro and thermal) of all but specific owner based on generation capacity."
 function add_generation_capacity_constraints!(model::Ml, T::Int64,
                                                         hydro::Vector{HydroGenerator}, 
-                                                        thermal::Vector{ThermalGenerator};
-                                                        grid::Bool = true) where {Ml}
+                                                        thermal::Vector{ThermalGenerator},
+                                                        problem::String) where {Ml}
 
     I, J = length(thermal), length(hydro)     
 
-    if grid
+    if problem == "grid"
         @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_grid][t, thermal[i].number] ≤ thermal[i].g_max)
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ hydro[j].g_max)
     else
@@ -82,13 +82,14 @@ function add_generation_capacity_constraints!(model::Ml, T::Int64,
     end
 end
 
-function add_balance_constraints!(model::Ml, T::Int64, system::Dict; grid::Bool = true) where {Ml}
+"Create balance constraints for grid and market problems."
+function add_balance_constraints!(model::Ml, T::Int64, system::Dict, problem::String) where {Ml}
                                                        
     load    = system["load"]     
     thermal = system["thermal"]  
     hydro   = system["hydro"]    
 
-    if grid
+    if problem == "grid"
         bus  = system["bus"]     
         line = system["line"]    
 
@@ -124,84 +125,49 @@ function add_balance_constraints!(model::Ml, T::Int64, system::Dict; grid::Bool 
     end
 end
 
-function create_future_cost_function(model::Ml, T::Int64, hydro::Vector{HydroGenerator}; nash::Bool = true) where {Ml}
+"Create hydro constraints for GENCO, grid and market problems."
+function add_hydro_constraints!(model::Ml, T::Int64,
+                                    hydro::Vector{HydroGenerator}, maximum_travel_time::Int64, problem::String) where {Ml}
 
-    Jgc = length(hydro)
+    J = length(hydro)     
+    c = 1/(10^6/3600)
 
-    if nash
-
-        return sum(hydro[j].γ * (model[:v][T, hydro[j].number] - hydro[j].v_initial) for j = 1:Jgc)
+    if problem == "grid"
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_grid][t, hydro[j].number] ≤ hydro[j].q_max)
+        @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s_grid][t, hydro[j].number])
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_grid][t, hydro[j].number] ≤ hydro[j].v_max)
+        @constraint(model, [t = 1:T, j = 1:J], model[:g_grid][t, hydro[j].number] == hydro[j].ρ * model[:q_grid][t, hydro[j].number])
+        @constraint(model, [j = 1:J], model[:v_grid][0, hydro[j].number] == hydro[j].v_initial)
+        @constraint(model, [t = 1:T, j = 1:J], model[:q_grid][0, hydro[j].number] == hydro[j].v_initial)
+        @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:q_grid][t, hydro[j].number] == hydro[j].q_initial[t + maximum_travel_time])
+        @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:s_grid][t, hydro[j].number] == hydro[j].s_initial[t + maximum_travel_time])
+        @constraint(model, [t = 1:T, j = 1:J], model[:v_grid][t, hydro[j].number] == model[:v_grid][t - 1, hydro[j].number] - 
+                                                c * (model[:q_grid][t - 1, hydro[j].number] + model[:s_grid][t - 1, hydro[j].number] - hydro[j].inflow[t] -
+                                                sum(model[:q_grid][t - hydro[j].cascade[m], m] + model[:s_grid][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
+    elseif problem == "market"
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_market][t, hydro[j].number] ≤ hydro[j].q_max)
+        @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s_market][t, hydro[j].number])
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_market][t, hydro[j].number] ≤ hydro[j].v_max)
+        @constraint(model, [t = 1:T, j = 1:J], model[:g_market][t, hydro[j].number] == hydro[j].ρ * model[:q_market][t, hydro[j].number])
+        @constraint(model, [j = 1:J], model[:v_market][0, hydro[j].number] == hydro[j].v_initial)
+        @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:q_market][t, hydro[j].number] == hydro[j].q_initial[t + maximum_travel_time])
+        @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:s_market][t, hydro[j].number] == hydro[j].s_initial[t + maximum_travel_time])
+        @constraint(model, [t = 1:T, j = 1:J], model[:v_market][t, hydro[j].number] == model[:v_market][t - 1, hydro[j].number] - 
+                                                c * (model[:q_market][t - 1, hydro[j].number] + model[:s_market][t - 1, hydro[j].number] - hydro[j].inflow[t] -
+                                                sum(model[:q_market][t - hydro[j].cascade[m], m] + model[:s_market][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
     else
-
-        return sum(hydro[j].γ * (model[:v_grid][T, hydro[j].number] - hydro[j].v_initial) for j = 1:Jgc) + 
-                sum(hydro[j].γ * (model[:v_market][T, hydro[j].number] - hydro[j].v_initial) for j = 1:Jgc)
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q][t, hydro[j].number] ≤ hydro[j].q_max)
+        @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s][t, hydro[j].number])
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v][t, hydro[j].number] ≤ hydro[j].v_max)
+        @constraint(model, [t = 1:T, j = 1:J], model[:g_grid][t, hydro[j].number] == hydro[j].ρ * model[:q][t, hydro[j].number])
+        @constraint(model, [j = 1:J], model[:v][0, hydro[j].number] == hydro[j].v_initial)
+        @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:q][t, hydro[j].number] == hydro[j].q_initial[t + maximum_travel_time])
+        @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:s][t, hydro[j].number] == hydro[j].s_initial[t + maximum_travel_time])
+        @constraint(model, [t = 1:T, j = 1:J], model[:v][t, hydro[j].number] == model[:v][t - 1, hydro[j].number] - 
+                                                c * (model[:q][t - 1, hydro[j].number] + model[:s][t - 1, hydro[j].number] - hydro[j].inflow[t] -
+                                                sum(model[:q][t - hydro[j].cascade[m], m] + model[:s][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
     end
 end
 
 
-
-using Gurobi, JuMP, BilevelJuMP, CSV, DataFrames
-
-include("src/structures.jl")
-include("src/input_data.jl")
-
-path = "data"
-T = 24
-system = create_input_data(path, T)
-
-model = Model(Gurobi.Optimizer)
-
-#bigN = 1e9
-#nashmodel = BilevelModel(Gurobi.Optimizer, mode = BilevelJuMP.FortunyAmatMcCarlMode(primal_big_M = bigN, dual_big_M = bigN))
-#set_optimizer_attribute(nashmodel, "NonConvex", 2)
-
-#η = 0.5
-
-I = length(system["thermal"])
-J = length(system["hydro"])
-L = length(system["line"])
-E = length(system["exchange"])
-B = length(system["bus"])
-Z = length(system["zone"])
-
-# thermal_idx = findall(i -> i == 3, getfield.(system["thermal"], :owner))
-# hydro_idx   = findall(j -> j == 3, getfield.(system["hydro"], :owner))
-
-# thermal = system["thermal"][thermal_idx]
-# hydro   = system["hydro"][hydro_idx]
-
-# @variable(model, λt[t = 1:T, thermal_idx])
-# @variable(model, λh[t = 1:T, hydro_idx])
-# @variable(model, μt[t = 1:T, thermal_idx])
-# @variable(model, μh[t = 1:T, hydro_idx])
-@variable(model, p_grid[t = 1:T, i = 1:I])
-@variable(model, g_grid[t = 1:T, j = 1:J])
-@variable(model, p_market[t = 1:T, i = 1:I])
-@variable(model, g_market[t = 1:T, j = 1:J])
-@variable(model, f_grid[t = 1:T, l = 1:L])
-@variable(model, f_market[t = 1:T, e = 1:E])
-@variable(model, θ[t = 1:T, b = 1:B])
-@variable(model, δ_grid[t = 1:T, b = 1:B])
-@variable(model, δ_market[t = 1:T, z = 1:Z])
-@variable(model, v[1:T, j = 1:J])
-@variable(model, v_grid[1:T, j = 1:J])
-@variable(model, v_market[1:T, j = 1:J])
-
-# @variable(Upper(nashmodel), λt[t = 1:T, thermal_idx])
-# @variable(Upper(nashmodel), λh[t = 1:T, hydro_idx])
-# @variable(Upper(nashmodel), μt[t = 1:T, thermal_idx])
-# @variable(Upper(nashmodel), μh[t = 1:T, hydro_idx])
-# @variable(Upper(nashmodel), p_grid[t = 1:T, thermal_idx])
-# @variable(Upper(nashmodel), g_grid[t = 1:T, hydro_idx])
-
-add_price_bid_constraints!(model, η, maximum_thermal_uvc, T, hydro, thermal)
-add_price_bid_constraints!(Upper(nashmodel), η, maximum_thermal_uvc, T, hydro, thermal)
-
-add_quantity_bid_constraints!(model, T, hydro, thermal)
-add_quantity_bid_constraints!(Upper(nashmodel), T, hydro, thermal)
-
-add_ramp_constraints!(model, T, hydro, thermal)
-add_ramp_constraints!(Upper(nashmodel), T, hydro, thermal)
-
-add_balance_constraints!(model, T, system; grid = false) 
 

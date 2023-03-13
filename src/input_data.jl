@@ -111,7 +111,7 @@ function create_hydro_structs(path::String)
     for j in 1:J
 
         ρ           = hydro_df[j, "p"]
-        ρc          =  hydro_df[j, "pc"]
+        ρc          = hydro_df[j, "pc"]
         q_max       = hydro_df[j, "Qhmax"]
         q_min       = hydro_df[j, "Qhmin"]
         water_value = hydro_df[j, "WV"]
