@@ -7,5 +7,6 @@ module NashEquilibriumElectricityMarkets
 
     include("structures.jl")
     include("input_data.jl")
+    include("constraints.jl")
 
 end 

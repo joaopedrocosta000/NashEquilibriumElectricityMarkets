@@ -36,7 +36,7 @@ struct HydroGenerator
     water_value::Float64 # R$/MWh
     γ::Float64 # R$/hm3
     inflow::Vector{Float64}
-    cascade::Dict{Int64, Int64} # dicionário com usinas a montante: chave é o id da hidro e valor o tempo de viagem
+    cascade::Dict{Int64, Int64} # dicionário com usinas a montante: chave é o número da hidro e valor o tempo de viagem
 end
 
 struct Bus
@@ -55,6 +55,7 @@ struct Line
     number::Int64
     from::Int64
     to::Int64
+    f_min::Float64
     f_max::Float64
     reactance::Float64
 end
@@ -63,6 +64,7 @@ struct Exchange
     number::Int64
     from::Int64
     to::Int64
+    f_min::Float64
     f_max::Float64
 end
 
