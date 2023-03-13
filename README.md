@@ -1,1 +1,1 @@
-# NashEquilibriumElecticityMarkets
+# NashEquilibriumElectricityMarkets
