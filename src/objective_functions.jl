@@ -20,7 +20,7 @@ function create_grid_market_cost_function(model::Ml, T::Int64,
                                                 bus::Vector{Bus},
                                                 zone::Vector{Zone},
                                                 PBidt_EQ::Matrix{Float64}, PBidh_EQ::Matrix{Float64},
-                                                genco::Int64)
+                                                genco::Int64) where {Ml}
      
     thermal_owner = thermal[findall(i -> i == genco, getfield.(thermal, :owner))]
     hydro_owner   = hydro[findall(i -> i == genco, getfield.(hydro, :owner))]
@@ -57,7 +57,7 @@ function create_grid_market_cost_function(model::Ml, T::Int64,
                                                 hydro::Vector{HydroGenerator}, 
                                                 thermal::Vector{ThermalGenerator},
                                                 bus::Vector{Bus},
-                                                zone::Vector{Zone})
+                                                zone::Vector{Zone}) where {Ml}
     
     I, J = length(thermal), length(hydro)
     B, Z = length(bus), length(zone)    
@@ -70,3 +70,22 @@ function create_grid_market_cost_function(model::Ml, T::Int64,
             
     return grid_cost + market_cost
 end
+
+"Create revenue function for specific owner."
+function create_revenue_function(model::Ml, T::Int64,
+                                    hydro::Vector{HydroGenerator},
+                                    thermal::Vector{ThermalGenerator},
+                                    bus::Vector{Bus},
+                                    zone::Vector{Zone},
+                                    mode::String) where {Ml}      
+              
+    Igc, Jgc = length(thermal), length(hydro)
+
+    if mode == "zonal"
+        return sum(sum((Upper(model)[:πz][t, thermal[i].zone] - thermal[i].uvc) * Lower(model)[:p_grid][t, thermal[i].number] for i in 1:Igc) + 
+                      sum((Upper(model)[:πz][t, hydro[j].zone]) * Lower(model)[:g_grid][t, hydro[j]number]for j in 1:Jgc) for t in 1:T)
+    else
+        return sum(sum((Upper(model)[:πb][t, thermal[i].bus] - thermal[i].uvc) * Lower(model)[:p_grid][t, thermal[i].number] for i in 1:Igc) + 
+                      sum((Upper(model)[:πb][t, hydro[j].bus]) * Lower(model)[:g_grid][t, hydro[j]number]for j in 1:Jgc) for t in 1:T)
+    end
+end                                   
