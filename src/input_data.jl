@@ -25,7 +25,8 @@ function create_zone_structs(path::String)
     zone = Vector{Zone}(undef, Z)
 
     for z in 1:Z
-        zone[z] = Zone(unique_number[z], unique_name[z])
+        zone_bus_df = filter(:Zone => isequal(z), zone_df)
+        zone[z] = Zone(unique_number[z], unique_name[z], round(mean(zone_bus_df[:, :Cdef]); digits = 2))
     end
 
     return zone

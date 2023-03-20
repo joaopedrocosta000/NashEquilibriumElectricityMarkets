@@ -49,6 +49,7 @@ end
 struct Zone
     number::Int64
     name::String
+    deficit_cost::Float64
 end
 
 struct Line
