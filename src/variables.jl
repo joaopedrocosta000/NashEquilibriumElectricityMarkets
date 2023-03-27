@@ -49,9 +49,8 @@ function add_dispatch_variables!(model::Ml, T::Int64,
 end
 
 function add_hydro_variables!(model::Model, T::Int64,
-                              hydro::Vector{Hydro}) where {Ml}
-
-    # Calcular maximum_travel_time a partir de hydro.cascade
+                              hydro::Vector{Hydro},
+                              maximum_travel_time::Int64) where {Ml}
 
     J = length(hydro)
 

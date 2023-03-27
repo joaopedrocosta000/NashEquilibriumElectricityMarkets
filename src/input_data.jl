@@ -225,3 +225,18 @@ function create_input_data(path::String, T::Int64)
 
     return dict_input
 end
+
+"Calculates the maximum travel time."
+function get_maximum_travel_time(hydro::Vector{HydroGenerator})
+
+    maximum_travel_time = 0
+    J = length(hydro)
+
+    for j in 1:J
+        if length(values(hydro[j].cascade)) > 0 && (maximum(values(hydro[j].cascade)) > maximum_travel_time)
+            maximum_travel_time = maximum(values(hydro[j].cascade))
+        end
+    end
+
+    return maximum_travel_time
+end
