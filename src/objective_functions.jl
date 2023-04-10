@@ -72,11 +72,11 @@ function create_grid_market_cost_function(model::Ml, T::Int64,
         
     elseif mode == "competitive"
         grid_cost = sum(sum(thermal[i].uvc * model[:p_grid][t, thermal[i].number] for i in 1:I) +
-                        sum(hydro[j].water_value * model[:g_grid][t, hydro[j].number] for j in 1:J)
+                        sum(hydro[j].water_value * model[:g_grid][t, hydro[j].number] for j in 1:J) +
                         sum(bus[b].deficit_cost * model[:δ_grid][t, b] for b in 1:B) for t in 1:T)
                         
         market_cost = sum(sum(thermal[i].uvc * model[:p_market][t, thermal[i].number] for i in 1:I) + 
-                        sum(hydro[j].water_value * model[:g_market][t, hydro[j].number] for j in 1:J)
+                        sum(hydro[j].water_value * model[:g_market][t, hydro[j].number] for j in 1:J) +
                         sum(zone[z].deficit_cost * model[:δ_market][t, z] for z in 1:Z) for t in 1:T)
                 
         return grid_cost + market_cost
@@ -97,9 +97,9 @@ function create_revenue_function(model::Ml, T::Int64,
 
     if price == "zonal"
         return sum(sum((Upper(model)[:πz][t, thermal[i].zone] - thermal[i].uvc) * Lower(model)[:p_grid][t, thermal[i].number] for i in 1:Igc) + 
-                      sum((Upper(model)[:πz][t, hydro[j].zone]) * Lower(model)[:g_grid][t, hydro[j]number]for j in 1:Jgc) for t in 1:T)
+                      sum((Upper(model)[:πz][t, hydro[j].zone]) * Lower(model)[:g_grid][t, hydro[j]number] for j in 1:Jgc) for t in 1:T)
     else
         return sum(sum((Upper(model)[:πb][t, thermal[i].bus] - thermal[i].uvc) * Lower(model)[:p_grid][t, thermal[i].number] for i in 1:Igc) + 
-                      sum((Upper(model)[:πb][t, hydro[j].bus]) * Lower(model)[:g_grid][t, hydro[j]number]for j in 1:Jgc) for t in 1:T)
+                      sum((Upper(model)[:πb][t, hydro[j].bus]) * Lower(model)[:g_grid][t, hydro[j]number] for j in 1:Jgc) for t in 1:T)
     end
 end                                   

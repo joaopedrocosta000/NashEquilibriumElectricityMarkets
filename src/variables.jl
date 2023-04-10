@@ -1,7 +1,7 @@
 "Create price bid variables for a specific owner"
 function add_price_bid_variables!(model::Ml, T::Int64, 
-                                thermal::Vector{Thermal},
-                                hydro::Vector{Hydro}) where {Ml}
+                                thermal::Vector{ThermalGenerator},
+                                hydro::Vector{HydroGenerator}) where {Ml}
   
     thermal_idx = getfield.(thermal, :number)   
     hydro_idx   = getfield.(hydro, :number)            
@@ -11,8 +11,8 @@ function add_price_bid_variables!(model::Ml, T::Int64,
 end
 
 function add_quantity_bid_variables!(model::Ml, T::Int64, 
-                                    thermal::Vector{Thermal},
-                                    hydro::Vector{Hydro}) where {Ml}
+                                    thermal::Vector{ThermalGenerator},
+                                    hydro::Vector{HydroGenerator}) where {Ml}
 
     thermal_idx = getfield.(thermal, :number)   
     hydro_idx   = getfield.(hydro, :number)    
@@ -22,8 +22,8 @@ function add_quantity_bid_variables!(model::Ml, T::Int64,
 end
 
 function add_dispatch_variables!(model::Ml, T::Int64,
-                                 thermal::Vector{Thermal},
-                                 hydro::Vector{Hydro},
+                                 thermal::Vector{ThermalGenerator},
+                                 hydro::Vector{HydroGenerator},
                                  line::Vector{Line},
                                  exchange::Vector{Exchange},
                                  bus::Vector{Bus},
@@ -49,7 +49,7 @@ function add_dispatch_variables!(model::Ml, T::Int64,
 end
 
 function add_hydro_variables!(model::Model, T::Int64,
-                              hydro::Vector{Hydro},
+                              hydro::Vector{HydroGenerator},
                               maximum_travel_time::Int64) where {Ml}
 
     J = length(hydro)
