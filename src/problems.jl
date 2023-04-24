@@ -8,22 +8,32 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
     zone     = system["zone"]
     load     = system["load"]
 
-    maximum_travel_time = get_maximum_travel_time(hydro)
+    @info("Getting maximum travel time")
+    maximum_travel_time = NashEquilibriumElectricityMarkets.get_maximum_travel_time(hydro)
 
     # Adding decision variables to the optimization model (audited costs or competitive equilibrium)
-    add_dispatch_variables!(model, T, thermal, hydro, line, exchange, bus, zone)
-    add_hydro_variables!(model, T, hydro, maximum_travel_time)
+    @info("Adding dispatch variables")
+    NashEquilibriumElectricityMarkets.add_dispatch_variables!(model, T, thermal, hydro, line, exchange, bus, zone)
+    @info("Adding hydro variables")
+    NashEquilibriumElectricityMarkets.add_hydro_variables!(model, T, hydro, maximum_travel_time)
 
     # Adding constraints to the optimization model (audited costs or competitive equilibrium)
-    add_ramp_constraints!(model, T, hydro, thermal)
+    @info("Adding ramp constraints")
+    NashEquilibriumElectricityMarkets.add_ramp_constraints!(model, T, hydro, thermal)
 
-    add_generation_capacity_constraints!(model, T, hydro, thermal, "market")
-    add_generation_capacity_constraints!(model, T, hydro, thermal, "grid")
+    @info("Adding generation capacity constraints for mode = market")
+    NashEquilibriumElectricityMarkets.add_generation_capacity_constraints!(model, T, hydro, thermal, "market")
+    @info("Adding generation capacity constraints for mode = grid")
+    NashEquilibriumElectricityMarkets.add_generation_capacity_constraints!(model, T, hydro, thermal, "grid")
 
+    @info("Adding balance constraints for mode = market")
     add_balance_constraints!(model, T, system, "market")
+    @info("Adding balance constraints for mode = grid")
     add_balance_constraints!(model, T, system, "grid")
 
+    @info("Adding hydro constraints for mode = market")
     add_hydro_constraints!(model, T, hydro, maximum_travel_time, "market")
+    @info("Adding hydro constraints for mode = grid")
     add_hydro_constraints!(model, T, hydro, maximum_travel_time, "grid")
 
     # Controlled flows' limits =======> ADD LATER
@@ -46,7 +56,7 @@ function audited_costs(system::Dict; T::Int64 = 24)
     # Chama a função clearing para mode = "audited_costs"
 
     model = Model(Gurobi.Optimizer)
-    clearing!(model, system, "audited_costs"; T = T) 
+    clearing!(model, system, "audited_costs"; T = 24)
 
     optimize!(model)
     println("Number of solutions: ", result_count(model))

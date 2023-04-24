@@ -39,10 +39,10 @@ function add_generation_bid_constraints!(model::Ml, T::Int64,
     I, J = length(thermal), length(hydro)
     
     if problem == "grid"
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_grid][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
+        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_grid][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ model[:μh][t, hydro[j].number])
     else
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_market][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
+        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_market][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_market][t, hydro[j].number] ≤ model[:μh][t, hydro[j].number])
     end
 end
@@ -57,10 +57,10 @@ function add_generation_bid_constraints!(model::Ml, T::Int64,
     I, J = length(thermal), length(hydro)     
 
     if problem == "grid"
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_grid][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
+        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_grid][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
     else
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
+        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_market][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
     end
 end
@@ -74,10 +74,10 @@ function add_generation_capacity_constraints!(model::Ml, T::Int64,
     I, J = length(thermal), length(hydro)     
 
     if problem == "grid"
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_grid][t, thermal[i].number] ≤ thermal[i].g_max)
+        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_grid][t, thermal[i].number] ≤ thermal[i].g_max[t])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ hydro[j].g_max)
     else
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min ≤ model[:p_market][t, thermal[i].number] ≤ thermal[i].g_max)
+        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_market][t, thermal[i].number] ≤ thermal[i].g_max[t])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_market][t, hydro[j].number] ≤ hydro[j].g_max)
     end
 end
@@ -103,7 +103,13 @@ function add_balance_constraints!(model::Ml, T::Int64, system::Dict, problem::St
                                                      == sum(load[d].value[t] for d ∈ findall(d -> d == b, getfield.(load, :bus)); init = 0.0)
                                                      - model[:δ_grid][t, b])
 
-        @constraint(model, [t = 1:T, b = 1:B], 0 ≤ model[:δ_grid][t, b] ≤ load[findall(d -> d == b, getfield.(load, :bus))].value[t])
+        for b in 1:B            
+            idx_bus = findall(d -> d == b, getfield.(load, :bus))   
+            
+            if !isempty(idx_bus)
+                @constraint(model, [t = 1:T, b = 1:B], 0 ≤ model[:δ_grid][t, b] ≤ load[idx_bus[1]].value[t])
+            end
+        end
         
         @constraint(model, [t = 1:T, l = 1:L], line[l].f_min ≤ model[:f_grid][t, l] ≤ line[l].f_max)
 
@@ -122,7 +128,14 @@ function add_balance_constraints!(model::Ml, T::Int64, system::Dict, problem::St
                                                         == sum(load[d].value[t] for d ∈ findall(d -> d == z, getfield.(load, :zone)); init = 0.0)
                                                         - model[:δ_market][t, z])
 
-        @constraint(model, [t = 1:T, z = 1:Z], 0 ≤ model[:δ_market][t, z] ≤ sum(load[d].value[t] for d ∈ findall(d -> d == z, getfield.(load, :zone)); init = 0.0))
+        
+        for z in 1:Z            
+            idx_zone = findall(d -> d == z, getfield.(load, :zone))   
+            
+            if !isempty(idx_zone)
+                @constraint(model, [t = 1:T, z = 1:Z], 0 ≤ model[:δ_market][t, z] ≤ sum(load[d].value[t] for d ∈ idx_zone; init = 0.0))
+            end
+        end
 
         @constraint(model, [t = 1:T, e = 1:E], exchange[e].f_min ≤ model[:f_market][t, e] ≤ exchange[e].f_max)
 
