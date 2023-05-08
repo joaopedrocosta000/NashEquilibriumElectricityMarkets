@@ -40,6 +40,7 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
 
 
     # Create objective function
+    @info("Creating objective function")
     future_cost_function          = create_future_cost_function(model, T, hydro, mode)
     grid_and_market_cost_function = create_grid_market_cost_function(model, T, hydro, thermal, bus, zone, mode)
 
@@ -63,7 +64,7 @@ function audited_costs(system::Dict; T::Int64 = 24)
     
     if result_count(model) ≥ 1
         println("Audited Costs: optimal or time limit")
-        return create_output_grid(system, model, T)
+        return create_output(system, model, T)
     else
         println("Audited Costs: infeasible or unbounded")
         return nothing
@@ -100,7 +101,7 @@ function calc_revenue(system::Dict, output_grid::OutputGrid, output_market::Outp
     owner_list_thermal = getfield.(thermal, :owner)
     owner_list_hydro   = getfield.(hydro, :owner)
 
-    owner_list = unique(vcat(owner_list_thermal, owner_list_hydro))
+    owner_list = sort(unique(vcat(owner_list_thermal, owner_list_hydro)))
 
     revenue_nodal  = Vector{Float64}(undef, length(owner_list))
     revenue_zonal  = Vector{Float64}(undef, length(owner_list))
@@ -131,10 +132,10 @@ function calc_revenue(system::Dict, output_grid::OutputGrid, output_market::Outp
 
             hydro_k = findall(m -> m == owner, getfield.(hydro, :owner))
 
-            revenue_nodal_k += sum(sum((output_grid.nodal_price[t, hydro[j].bus]) * output_grid.p[t, hydro[j].number] for t in 1:T) 
+            revenue_nodal_k += sum(sum((output_grid.nodal_price[t, hydro[j].bus]) * output_grid.g[t, hydro[j].number] for t in 1:T) 
                                         for j in hydro_k)
 
-            revenue_zonal_k += sum(sum((output_market.zonal_price[t, hydro[j].zone]) * output_grid.p[t, hydro[j].number] for t in 1:T) 
+            revenue_zonal_k += sum(sum((output_market.zonal_price[t, hydro[j].zone]) * output_grid.g[t, hydro[j].number] for t in 1:T) 
                                         for j in hydro_k)
 
         end
@@ -151,26 +152,26 @@ end
 
 function create_output(system::Dict, model::Ml, T::Int64) where {Ml}
 
-    nodal_price = getdual(KCL_grid)
-    v_grid      = JuMP.value.(v_grid).data
-    q_grid      = JuMP.value.(q_grid).data[end - T + 1:end, :]
-    s_grid      = JuMP.value.(s_grid).data[end - T + 1:end, :]
-    p_grid      = JuMP.value.(p_grid).data
-    g_grid      = JuMP.value.(g_grid).data
-    f_grid      = JuMP.value.(f_grid).data
-    δ_grid      = JuMP.value.(δ_grid).data
-    θ_grid      = JuMP.value.(θ_grid).data
+    nodal_price = dual.(model[:KCL_grid])
+    v_grid      = JuMP.value.(model[:v_grid]).data
+    q_grid      = JuMP.value.(model[:q_grid]).data[end - T + 1:end, :]
+    s_grid      = JuMP.value.(model[:s_grid]).data[end - T + 1:end, :]
+    p_grid      = JuMP.value.(model[:p_grid])
+    g_grid      = JuMP.value.(model[:g_grid])
+    f_grid      = JuMP.value.(model[:f_grid])
+    δ_grid      = JuMP.value.(model[:δ_grid])
+    θ           = JuMP.value.(model[:θ])
 
-    zonal_price = getdual(KCL_market)
-    v_market    = JuMP.value.(v_market).data
-    q_market    = JuMP.value.(q_market).data[end - T + 1:end, :]
-    s_market    = JuMP.value.(s_market).data[end - T + 1:end, :]
-    p_market    = JuMP.value.(p_market).data
-    g_market    = JuMP.value.(g_market).data
-    f_market    = JuMP.value.(f_market).data
-    δ_market    = JuMP.value.(δ_market).data
+    zonal_price = dual.(model[:KCL_market])
+    v_market    = JuMP.value.(model[:v_market]).data
+    q_market    = JuMP.value.(model[:q_market]).data[end - T + 1:end, :]
+    s_market    = JuMP.value.(model[:s_market]).data[end - T + 1:end, :]
+    p_market    = JuMP.value.(model[:p_market])
+    g_market    = JuMP.value.(model[:g_market])
+    f_market    = JuMP.value.(model[:f_market])
+    δ_market    = JuMP.value.(model[:δ_market])
 
-    output_grid    = OutputGrid(nodal_price, v_grid, q_grid, s_grid, p_grid, g_grid, f_grid, δ_grid, θ_grid)
+    output_grid    = OutputGrid(nodal_price, v_grid, q_grid, s_grid, p_grid, g_grid, f_grid, δ_grid, θ)
     output_market  = OutputMarket(zonal_price, v_market, q_market, s_market, p_market, g_market, f_market, δ_market)
     revenue        = calc_revenue(system, output_grid, output_market, T)
 
