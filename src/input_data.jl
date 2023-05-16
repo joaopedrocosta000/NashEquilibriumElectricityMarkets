@@ -100,7 +100,7 @@ function create_hydro_structs(path::String)
 
     hydro_df            = CSV.read(joinpath(path, "Hydro.csv"), DataFrame)
     cascade_df          = CSV.read(joinpath(path, "Hydro_Cascade.csv"), DataFrame)[:, 2:end]
-    inflow_df           = CSV.read(joinpath(path, "Hydro_Inflow.csv"), DataFrame)
+    inflow_df           = CSV.read(joinpath(path, "Hydro_Inflow.csv"), DataFrame)[:, 2:end]
     spillage_df         = CSV.read(joinpath(path, "Hydro_SpillageHist.csv"), DataFrame)
     turbined_outflow_df = CSV.read(joinpath(path, "Hydro_TurbinedOutflowHist.csv"), DataFrame)
 

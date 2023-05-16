@@ -151,7 +151,8 @@ function add_hydro_constraints!(model::Ml, T::Int64,
 
     if problem == "grid"
 
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_grid][t, hydro[j].number] ≤ hydro[j].q_max)
+        # @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_grid][t, hydro[j].number] ≤ hydro[j].q_max)
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_grid][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s_grid][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_grid][t, hydro[j].number] ≤ hydro[j].v_max)
 
@@ -161,13 +162,14 @@ function add_hydro_constraints!(model::Ml, T::Int64,
         @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:q_grid][t, hydro[j].number] == hydro[j].q_initial[t + maximum_travel_time])
         @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:s_grid][t, hydro[j].number] == hydro[j].s_initial[t + maximum_travel_time])
 
-        @constraint(model, [t = 1:T, j = 1:J], model[:v_grid][t, hydro[j].number] == model[:v_grid][t - 1, hydro[j].number] - 
-                                                c * (model[:q_grid][t - 1, hydro[j].number] + model[:s_grid][t - 1, hydro[j].number] - hydro[j].inflow[t] -
-                                                sum(model[:q_grid][t - hydro[j].cascade[m], m] + model[:s_grid][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
+        @constraint(model, hbalance_grid[t = 1:T, j = 1:J], model[:v_grid][t, hydro[j].number] == model[:v_grid][t - 1, hydro[j].number] 
+                                               - c * (model[:q_grid][t, hydro[j].number] + model[:s_grid][t, hydro[j].number] - hydro[j].inflow[t] 
+                                               - sum(model[:q_grid][t - hydro[j].cascade[m], m] + model[:s_grid][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
 
     elseif problem == "market"
 
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_market][t, hydro[j].number] ≤ hydro[j].q_max)
+        # @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_market][t, hydro[j].number] ≤ hydro[j].q_max)
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_market][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s_market][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_market][t, hydro[j].number] ≤ hydro[j].v_max)
 
@@ -177,13 +179,14 @@ function add_hydro_constraints!(model::Ml, T::Int64,
         @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:q_market][t, hydro[j].number] == hydro[j].q_initial[t + maximum_travel_time])
         @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:s_market][t, hydro[j].number] == hydro[j].s_initial[t + maximum_travel_time])
 
-        @constraint(model, [t = 1:T, j = 1:J], model[:v_market][t, hydro[j].number] == model[:v_market][t - 1, hydro[j].number] - 
-                                                c * (model[:q_market][t - 1, hydro[j].number] + model[:s_market][t - 1, hydro[j].number] - hydro[j].inflow[t] -
-                                                sum(model[:q_market][t - hydro[j].cascade[m], m] + model[:s_market][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
+        @constraint(model, hbalance_market[t = 1:T, j = 1:J], model[:v_market][t, hydro[j].number] == model[:v_market][t - 1, hydro[j].number] 
+                                               - c * (model[:q_market][t, hydro[j].number] + model[:s_market][t, hydro[j].number] - hydro[j].inflow[t] 
+                                               - sum(model[:q_market][t - hydro[j].cascade[m], m] + model[:s_market][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
 
     else
         
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q][t, hydro[j].number] ≤ hydro[j].q_max)
+        # @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q][t, hydro[j].number] ≤ hydro[j].q_max)
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v][t, hydro[j].number] ≤ hydro[j].v_max)
 
@@ -193,9 +196,9 @@ function add_hydro_constraints!(model::Ml, T::Int64,
         @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:q][t, hydro[j].number] == hydro[j].q_initial[t + maximum_travel_time])
         @constraint(model, [t = (-maximum_travel_time + 1):0, j = 1:J], model[:s][t, hydro[j].number] == hydro[j].s_initial[t + maximum_travel_time])
 
-        @constraint(model, [t = 1:T, j = 1:J], model[:v][t, hydro[j].number] == model[:v][t - 1, hydro[j].number] - 
-                                                c * (model[:q][t - 1, hydro[j].number] + model[:s][t - 1, hydro[j].number] - hydro[j].inflow[t] -
-                                                sum(model[:q][t - hydro[j].cascade[m], m] + model[:s][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
+        @constraint(model, [t = 1:T, j = 1:J], model[:v][t, hydro[j].number] == model[:v][t - 1, hydro[j].number] 
+                                               - c * (model[:q][t, hydro[j].number] + model[:s][t, hydro[j].number] - hydro[j].inflow[t] 
+                                               - sum(model[:q][t - hydro[j].cascade[m], m] + model[:s][t - hydro[j].cascade[m], m] for m in keys(hydro[j].cascade))))
     end
 end
 

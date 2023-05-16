@@ -27,9 +27,9 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
     NashEquilibriumElectricityMarkets.add_generation_capacity_constraints!(model, T, hydro, thermal, "grid")
 
     @info("Adding balance constraints for mode = market")
-    add_balance_constraints!(model, T, system, "market")
+    NashEquilibriumElectricityMarkets.add_balance_constraints!(model, T, system, "market")
     @info("Adding balance constraints for mode = grid")
-    add_balance_constraints!(model, T, system, "grid")
+    NashEquilibriumElectricityMarkets.add_balance_constraints!(model, T, system, "grid")
 
     @info("Adding hydro constraints for mode = market")
     add_hydro_constraints!(model, T, hydro, maximum_travel_time, "market")
@@ -41,8 +41,8 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
 
     # Create objective function
     @info("Creating objective function")
-    future_cost_function          = create_future_cost_function(model, T, hydro, mode)
-    grid_and_market_cost_function = create_grid_market_cost_function(model, T, hydro, thermal, bus, zone, mode)
+    future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(model, T, hydro, mode)
+    grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function(model, T, hydro, thermal, bus, zone, mode)
 
     @objective(model, Min, future_cost_function + grid_and_market_cost_function)
 
