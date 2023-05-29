@@ -44,8 +44,8 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
     future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(model, T, hydro, mode)
     grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function(model, T, hydro, thermal, bus, zone, mode)
 
-    @objective(model, Min, future_cost_function + grid_and_market_cost_function)
-
+    @objective(model, Min, grid_and_market_cost_function - future_cost_function)
+    # @objective(model, Min, grid_and_market_cost_function)
 end
 
 #function clearing(model::Ml, system::Dict, mode::String, QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64},
@@ -57,9 +57,11 @@ function audited_costs(system::Dict; T::Int64 = 24)
     # Chama a função clearing para mode = "audited_costs"
 
     model = Model(Gurobi.Optimizer)
+    # set_optimizer_attribute(model, "DualReductions", 0)
     clearing!(model, system, "audited_costs"; T = 24)
 
     optimize!(model)
+    println("Termination status: ", termination_status(model))
     println("Number of solutions: ", result_count(model))
     
     if result_count(model) ≥ 1

@@ -107,7 +107,7 @@ function add_balance_constraints!(model::Ml, T::Int64, system::Dict, problem::St
             idx_bus = findall(d -> d == b, getfield.(load, :bus))   
             
             if !isempty(idx_bus)
-                @constraint(model, [t = 1:T, b = 1:B], 0 ≤ model[:δ_grid][t, b] ≤ load[idx_bus[1]].value[t])
+                @constraint(model, [t = 1:T, b = 1:B], 0 ≤ model[:δ_grid][t, b] ≤ sum(load[d].value[t] for d ∈ findall(d -> d == b, getfield.(load, :bus)); init = 0.0))
             end
         end
         
@@ -133,12 +133,11 @@ function add_balance_constraints!(model::Ml, T::Int64, system::Dict, problem::St
             idx_zone = findall(d -> d == z, getfield.(load, :zone))   
             
             if !isempty(idx_zone)
-                @constraint(model, [t = 1:T, z = 1:Z], 0 ≤ model[:δ_market][t, z] ≤ sum(load[d].value[t] for d ∈ idx_zone; init = 0.0))
+                @constraint(model, [t = 1:T, z = 1:Z], 0 ≤ model[:δ_market][t, z] ≤ sum(load[d].value[t] for d ∈ findall(d -> d == z, getfield.(load, :zone)); init = 0.0))
             end
         end
 
         @constraint(model, [t = 1:T, e = 1:E], exchange[e].f_min ≤ model[:f_market][t, e] ≤ exchange[e].f_max)
-
     end
 end
 
@@ -151,7 +150,6 @@ function add_hydro_constraints!(model::Ml, T::Int64,
 
     if problem == "grid"
 
-        # @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_grid][t, hydro[j].number] ≤ hydro[j].q_max)
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_grid][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s_grid][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_grid][t, hydro[j].number] ≤ hydro[j].v_max)
@@ -168,7 +166,6 @@ function add_hydro_constraints!(model::Ml, T::Int64,
 
     elseif problem == "market"
 
-        # @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_market][t, hydro[j].number] ≤ hydro[j].q_max)
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_market][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s_market][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_market][t, hydro[j].number] ≤ hydro[j].v_max)
@@ -185,7 +182,6 @@ function add_hydro_constraints!(model::Ml, T::Int64,
 
     else
         
-        # @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q][t, hydro[j].number] ≤ hydro[j].q_max)
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v][t, hydro[j].number] ≤ hydro[j].v_max)
