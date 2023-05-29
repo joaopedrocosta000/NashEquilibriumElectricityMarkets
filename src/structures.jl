@@ -80,3 +80,39 @@ struct Load
     zone::Int64
     value::Vector{Float64}
 end
+
+struct OutputGrid
+    nodal_price::Union{Matrix{Float64}, Missing}
+    v::Union{Matrix{Float64}, Missing}
+    q::Union{Matrix{Float64}, Missing}
+    s::Union{Matrix{Float64}, Missing}
+    p::Union{Matrix{Float64}, Missing}
+    g::Union{Matrix{Float64}, Missing}
+    f::Union{Matrix{Float64}, Missing}
+    δ::Union{Matrix{Float64}, Missing}
+    θ::Union{Matrix{Float64}, Missing}
+end
+
+struct OutputMarket
+    zonal_price::Union{Matrix{Float64}, Missing}
+    v::Union{Matrix{Float64}, Missing}
+    q::Union{Matrix{Float64}, Missing}
+    s::Union{Matrix{Float64}, Missing}
+    p::Union{Matrix{Float64}, Missing}
+    g::Union{Matrix{Float64}, Missing}
+    f::Union{Matrix{Float64}, Missing}
+    δ::Union{Matrix{Float64}, Missing}
+end
+
+struct Output 
+    grid::OutputGrid
+    market::OutputMarket
+    revenue::DataFrame
+end
+
+
+
+
+
+
+

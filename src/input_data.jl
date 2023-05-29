@@ -100,7 +100,7 @@ function create_hydro_structs(path::String)
 
     hydro_df            = CSV.read(joinpath(path, "Hydro.csv"), DataFrame)
     cascade_df          = CSV.read(joinpath(path, "Hydro_Cascade.csv"), DataFrame)[:, 2:end]
-    inflow_df           = CSV.read(joinpath(path, "Hydro_Inflow.csv"), DataFrame)
+    inflow_df           = CSV.read(joinpath(path, "Hydro_Inflow.csv"), DataFrame)[:, 2:end]
     spillage_df         = CSV.read(joinpath(path, "Hydro_SpillageHist.csv"), DataFrame)
     turbined_outflow_df = CSV.read(joinpath(path, "Hydro_TurbinedOutflowHist.csv"), DataFrame)
 
@@ -118,9 +118,9 @@ function create_hydro_structs(path::String)
         water_value = hydro_df[j, "WV"]
         c           = 1/(10^6/3600)
 
-        g_max = q_max * ρ
-        g_min = q_min * ρ
-        γ     = water_value * ρc / c
+        g_max = round(q_max * ρ, digits = 1)
+        g_min = round(q_min * ρ, digits = 1)
+        γ     = round(water_value * ρc / c, digits = 2)
 
         dict_cascade = Dict{Int64, Int64}()
         
@@ -132,7 +132,7 @@ function create_hydro_structs(path::String)
 
         hydro[j] = HydroGenerator(hydro_df[j, "HGenerator"], hydro_df[j, "HGenerator_cod"], hydro_df[j, "Name"],
                                     hydro_df[j, "GENCO"], hydro_df[j, "Ghbus"], hydro_df[j, "Ghzone"],
-                                    ρ, ρc, g_max, g_min, q_max, q_min, hydro_df[j, "Vmax"],
+                                    ρ, ρc, g_max, g_min, round(q_max, digits = 2), q_min, hydro_df[j, "Vmax"],
                                     hydro_df[j, "Vmin"], hydro_df[j, "Vi"], Vector(turbined_outflow_df[j, 2:maximum_τ + 1]),
                                     Vector(spillage_df[j, 2:maximum_τ + 1]), hydro_df[j, "Rup"], hydro_df[j, "Rdown"],
                                     water_value, γ, inflow_df[:, j], dict_cascade)
@@ -224,4 +224,19 @@ function create_input_data(path::String, T::Int64)
     dict_input["company"]  = create_company_structs(path, T)
 
     return dict_input
+end
+
+"Calculates the maximum travel time."
+function get_maximum_travel_time(hydro::Vector{HydroGenerator})
+
+    maximum_travel_time = 0
+    J = length(hydro)
+
+    for j in 1:J
+        if length(values(hydro[j].cascade)) > 0 && (maximum(values(hydro[j].cascade)) > maximum_travel_time)
+            maximum_travel_time = maximum(values(hydro[j].cascade))
+        end
+    end
+
+    return maximum_travel_time
 end

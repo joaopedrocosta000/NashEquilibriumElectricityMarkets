@@ -1,13 +1,11 @@
 "Create future cost function."
-function create_future_cost_function(model::Ml, T::Int64, hydro::Vector{HydroGenerator}; nash::Bool = true) where {Ml}
-
+function create_future_cost_function(model::Ml, T::Int64, hydro::Vector{HydroGenerator}, mode::String) where {Ml}
     Jgc = length(hydro)
 
-    if nash
+    if mode == "nash"
 
         return sum(hydro[j].γ * (model[:v][T, hydro[j].number] - hydro[j].v_initial) for j = 1:Jgc)
     else
-
         return sum(hydro[j].γ * (model[:v_grid][T, hydro[j].number] - hydro[j].v_initial) for j = 1:Jgc) + 
                 sum(hydro[j].γ * (model[:v_market][T, hydro[j].number] - hydro[j].v_initial) for j = 1:Jgc)
     end
@@ -57,18 +55,33 @@ function create_grid_market_cost_function(model::Ml, T::Int64,
                                                 hydro::Vector{HydroGenerator}, 
                                                 thermal::Vector{ThermalGenerator},
                                                 bus::Vector{Bus},
-                                                zone::Vector{Zone}) where {Ml}
+                                                zone::Vector{Zone}, mode::String) where {Ml}
     
     I, J = length(thermal), length(hydro)
     B, Z = length(bus), length(zone)    
 
-    grid_cost = sum(sum(thermal[i].uvc * model[:p_grid][t, thermal[i].number] for i in 1:I) + 
-                    sum(bus[b].deficit_cost * model[:δ_grid][t, b] for b in 1:B) for t in 1:T)
+    if mode == "audited_costs"
+        grid_cost = sum(sum(thermal[i].uvc * model[:p_grid][t, thermal[i].number] for i in 1:I) + 
+                        sum(bus[b].deficit_cost * model[:δ_grid][t, b] for b in 1:B) for t in 1:T)
 
-    market_cost = sum(sum(thermal[i].uvc * model[:p_market][t, thermal[i].number] for i in 1:I) + 
-                      sum(zone[z].deficit_cost * model[:δ_market][t, z] for z in 1:Z) for t in 1:T)
-            
-    return grid_cost + market_cost
+        market_cost = sum(sum(thermal[i].uvc * model[:p_market][t, thermal[i].number] for i in 1:I) + 
+                        sum(zone[z].deficit_cost * model[:δ_market][t, z] for z in 1:Z) for t in 1:T)
+                
+        return grid_cost + market_cost
+        
+    elseif mode == "competitive"
+        grid_cost = sum(sum(thermal[i].uvc * model[:p_grid][t, thermal[i].number] for i in 1:I) +
+                        sum(hydro[j].water_value * model[:g_grid][t, hydro[j].number] for j in 1:J) +
+                        sum(bus[b].deficit_cost * model[:δ_grid][t, b] for b in 1:B) for t in 1:T)
+                        
+        market_cost = sum(sum(thermal[i].uvc * model[:p_market][t, thermal[i].number] for i in 1:I) + 
+                        sum(hydro[j].water_value * model[:g_market][t, hydro[j].number] for j in 1:J) +
+                        sum(zone[z].deficit_cost * model[:δ_market][t, z] for z in 1:Z) for t in 1:T)
+                
+        return grid_cost + market_cost
+    else
+        @error("Mode not registered. Only audited_costs or competitive allowed.")
+    end
 end
 
 "Create revenue function for specific owner."
@@ -77,15 +90,15 @@ function create_revenue_function(model::Ml, T::Int64,
                                     thermal::Vector{ThermalGenerator},
                                     bus::Vector{Bus},
                                     zone::Vector{Zone},
-                                    mode::String) where {Ml}      
+                                    price::String) where {Ml}      
               
     Igc, Jgc = length(thermal), length(hydro)
 
-    if mode == "zonal"
+    if price == "zonal"
         return sum(sum((Upper(model)[:πz][t, thermal[i].zone] - thermal[i].uvc) * Lower(model)[:p_grid][t, thermal[i].number] for i in 1:Igc) + 
-                      sum((Upper(model)[:πz][t, hydro[j].zone]) * Lower(model)[:g_grid][t, hydro[j]number]for j in 1:Jgc) for t in 1:T)
+                      sum((Upper(model)[:πz][t, hydro[j].zone]) * Lower(model)[:g_grid][t, hydro[j]number] for j in 1:Jgc) for t in 1:T)
     else
         return sum(sum((Upper(model)[:πb][t, thermal[i].bus] - thermal[i].uvc) * Lower(model)[:p_grid][t, thermal[i].number] for i in 1:Igc) + 
-                      sum((Upper(model)[:πb][t, hydro[j].bus]) * Lower(model)[:g_grid][t, hydro[j]number]for j in 1:Jgc) for t in 1:T)
+                      sum((Upper(model)[:πb][t, hydro[j].bus]) * Lower(model)[:g_grid][t, hydro[j]number] for j in 1:Jgc) for t in 1:T)
     end
 end                                   
