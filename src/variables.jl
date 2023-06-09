@@ -9,7 +9,7 @@ function add_price_bid_variables!(model::Ml, T::Int64,
     @variable(model, λt[t = 1:T, thermal_idx])
     @variable(model, λh[t = 1:T, hydro_idx])
 end
-
+"Create quantity bid variables for a specific owner"
 function add_quantity_bid_variables!(model::Ml, T::Int64, 
                                     thermal::Vector{ThermalGenerator},
                                     hydro::Vector{HydroGenerator}) where {Ml}

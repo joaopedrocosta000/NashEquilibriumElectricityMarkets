@@ -41,7 +41,7 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
 
     # Create objective function
     @info("Creating objective function")
-    future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(model, T, hydro, mode)
+    future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(model, T, hydro)
     grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function(model, T, hydro, thermal, bus, zone, mode)
 
     @objective(model, Min, grid_and_market_cost_function - future_cost_function)
@@ -86,6 +86,51 @@ function competitive_equilibrium(system::Dict; T::Int64 = 24)
         println("Competitive Equilibrium: infeasible or unbounded")
         return nothing
     end
+end
+
+function optimal_bid(system::Dict, owner::Int64, price::String,
+                        PBidt_EQ::Matrix{Float64}, PBidh_EQ::Matrix{Float64},
+                        QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64}; 
+                        T::Int64 = 24, price_bid_cap::Float64 = 0.4,
+                        time_limit::Union{Bool, Int64} = 60 * 60, big_N = 1e7)
+
+    model = BilevelModel(Gurobi.Optimizer, mode = BilevelJuMP.FortunyAmatMcCarlMode(primal_big_M = big_N, dual_big_M = big_N))
+    set_optimizer_attribute(model, "NonConvex", 2)
+
+    if typeof(time_limit) == Int64
+        set_optimizer_attribute(model, "TimeLimit", time_limit)
+    end
+
+    thermal_owner  = findall(i -> i == owner, getfield.(system["thermal"], :owner))
+    hydro_owner    = findall(i -> i == owner, getfield.(system["hydro"], :owner))
+    thermal        = system["thermal"]
+    hydro          = system["hydro"]
+    line           = system["line"]
+    exchange       = system["exchange"]
+    bus            = system["bus"]
+    zone           = system["zone"]
+    load           = system["load"]
+
+    @info("---------- Creating upper level model ----------")
+    # Adding decision variables for the upper level model
+    @info("Adding price bid variables for genco $(owner)")
+    add_price_bid_variables!(Upper(model), T, thermal_owner, hydro_owner)
+    @info("Adding quantity bid variables for genco $(owner)")
+    add_quantity_bid_variables!(Upper(model), T, thermal_owner, hydro_owner)
+
+    # Adding constraints for the upper level model
+    @info("Adding price bid constraints for genco $(owner)")
+    add_price_bid_constraints!(Upper(model), price_bid_cap, T, hydro_owner, thermal_owner)
+    @info("Adding quantity bid constraints for genco $(owner)")
+    add_quantity_bid_constraints!(Upper(model), T, hydro_owner, thermal_owner)
+    
+    # Create objective function for the upper level model
+    @info("Creating objective function for genco $(owner)")
+    create_revenue_function(Upper(model), T, hydro_owner, thermal_owner, bus, zone, price)    
+
+    @info("---------- Creating lower level model ----------")
+    clearing!(Lower(model), system, "nash"; T = 24) ### CRIAR NOVA CLEARING PARA RECEBER MATRIZES OU USAR UM IF
+
 end
 
 function nash()

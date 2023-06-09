@@ -1,11 +1,11 @@
 "Create price bid constraints for generators (hydro and thermal) of specific owner."
-function add_price_bid_constraints!(model::Ml, η::Float64, maximum_thermal_uvc::Float64, T::Int64,
+function add_price_bid_constraints!(model::Ml, η::Float64, T::Int64,
                                         hydro::Vector{HydroGenerator},
                                         thermal::Vector{ThermalGenerator}) where {Ml}
     
     Igc, Jgc = length(thermal), length(hydro)
     @constraint(model, [t = 1:T, i = 1:Igc], 0 ≤ model[:λt][t, thermal[i].number] ≤ (1 + η) * thermal[i].uvc)
-    @constraint(model, [t = 1:T, j = 1:Jgc], 0 ≤ model[:λh][t, hydro[j].number] ≤ (1 + η) * maximum_thermal_uvc)
+    @constraint(model, [t = 1:T, j = 1:Jgc], 0 ≤ model[:λh][t, hydro[j].number] ≤ (1 + η) * hydro[j].water_value)
 end
 
 "Create quantity bid constraints for generators (hydro and thermal) of specific owner."
