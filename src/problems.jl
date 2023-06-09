@@ -53,9 +53,6 @@ end
 #end
 
 function audited_costs(system::Dict; T::Int64 = 24)
-
-    # Chama a função clearing para mode = "audited_costs"
-
     model = Model(Gurobi.Optimizer)
     # set_optimizer_attribute(model, "DualReductions", 0)
     clearing!(model, system, "audited_costs"; T = 24)
@@ -73,11 +70,22 @@ function audited_costs(system::Dict; T::Int64 = 24)
     end
 end
 
-function competitive_equilibrium()
+function competitive_equilibrium(system::Dict; T::Int64 = 24)
+    model = Model(Gurobi.Optimizer)
+    # set_optimizer_attribute(model, "DualReductions", 0)
+    clearing!(model, system, "competitive"; T = 24)
 
-    # Cria modelo JumMP
-
-    # Chama a função clearing para mode = "competitive_equilibrium"
+    optimize!(model)
+    println("Termination status: ", termination_status(model))
+    println("Number of solutions: ", result_count(model))
+    
+    if result_count(model) ≥ 1
+        println("Competitive Equilibrium: optimal or time limit")
+        return create_output(system, model, T)
+    else
+        println("Competitive Equilibrium: infeasible or unbounded")
+        return nothing
+    end
 end
 
 function nash()
