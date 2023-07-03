@@ -48,9 +48,57 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
     # @objective(model, Min, grid_and_market_cost_function)
 end
 
-#function clearing(model::Ml, system::Dict, mode::String, QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64},
-#                                                         PBidt_EQ::Matrix{Float64}, PBidh_EQ::Matrix{Float64}) where {Ml}
-#end
+function clearing!(model::Ml, system::Dict, QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64},
+                                                        PBidt_EQ::Matrix{Float64}, PBidh_EQ::Matrix{Float64}, genco::Int64; T::Int64 = 24) where {Ml}
+
+    thermal  = system["thermal"]
+    hydro    = system["hydro"]
+    line     = system["line"]
+    exchange = system["exchange"]
+    bus      = system["bus"]
+    zone     = system["zone"]
+    load     = system["load"]
+
+    @info("Getting maximum travel time")
+    maximum_travel_time = NashEquilibriumElectricityMarkets.get_maximum_travel_time(hydro)
+
+    # Adding decision variables to the bilevel optimization model
+    @info("Adding dispatch variables")
+    NashEquilibriumElectricityMarkets.add_dispatch_variables!(Lower(model), T, thermal, hydro, line, exchange, bus, zone)
+    @info("Adding hydro variables")
+    NashEquilibriumElectricityMarkets.add_hydro_variables!(Lower(model), T, hydro, maximum_travel_time)
+
+    # Adding constraints to the bilevel optimization model
+    @info("Adding ramp constraints")
+    NashEquilibriumElectricityMarkets.add_ramp_constraints!(Lower(model), T, hydro, thermal)
+
+    @info("Adding generation bid constraints for mode = market")
+    NashEquilibriumElectricityMarkets.add_generation_bid_constraints!(model, T, hydro, thermal, QBidt_EQ, QBidh_EQ, "market", genco)
+
+    @info("Adding generation bid constraints for mode = grid")
+    NashEquilibriumElectricityMarkets.add_generation_bid_constraints!(model, T, hydro, thermal, QBidt_EQ, QBidh_EQ, "grid", genco)
+
+    @info("Adding balance constraints for mode = market")
+    NashEquilibriumElectricityMarkets.add_balance_constraints!(Lower(model), T, system, "market")
+    @info("Adding balance constraints for mode = grid")
+    NashEquilibriumElectricityMarkets.add_balance_constraints!(Lower(model), T, system, "grid")
+
+    @info("Adding hydro constraints for mode = market")
+    add_hydro_constraints!(Lower(model), T, hydro, maximum_travel_time, "market")
+    @info("Adding hydro constraints for mode = grid")
+    add_hydro_constraints!(Lower(model), T, hydro, maximum_travel_time, "grid")
+
+    # Controlled flows' limits =======> ADD LATER
+
+
+    # Create objective function
+    @info("Creating objective function")
+    future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(Lower(model), T, hydro)
+    grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function(model, T, hydro, thermal, bus, zone, PBidt_EQ, PBidh_EQ, genco)
+
+    @objective(Lower(model), Min, grid_and_market_cost_function - future_cost_function)
+
+end
 
 function audited_costs(system::Dict; T::Int64 = 24)
     model = Model(Gurobi.Optimizer)
@@ -129,17 +177,20 @@ function optimal_bid(system::Dict, owner::Int64, price::String,
     create_revenue_function(Upper(model), T, hydro_owner, thermal_owner, bus, zone, price)    
 
     @info("---------- Creating lower level model ----------")
-    clearing!(Lower(model), system, "nash"; T = 24) ### CRIAR NOVA CLEARING PARA RECEBER MATRIZES OU USAR UM IF
+    clearing!(model, system, QBidt_EQ, QBidh_EQ, PBidt_EQ, PBidh_EQ, genco; T = T)
+    
+    ### RETORNAR QUANTIDADES E PREÇOS OFERTADOS
 
 end
 
 function nash()
 
-    # Cria modelo JumMP
+    # Cria modelo JumMP FEITO
 
-    # Chama a função clearing modificada
+    # Chama a função clearing modificada FEITO
 
-    # Roda carrossel
+    # Roda carrossel - 2 MATRIZES, UMA DE EQUILÍBRIO OUTRA DO CARROSSEL; NO FINAL DE CADA PASSAGEM DO WHILE, ELAS VÃO SER IGUAIS
+    # VAMOS PREENCHENDO A CARROSSEL NAS COLUNAS ASSOCIADAS AO GENCO SENDO OTIMIZADO
     
 end
 

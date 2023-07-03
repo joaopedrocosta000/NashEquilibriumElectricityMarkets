@@ -31,37 +31,52 @@ function add_ramp_constraints!(model::Ml, T::Int64,
 end
 
 "Create grid generation constraints for generators (hydro and thermal) of specific owner based on quantity bids."
-function add_generation_bid_constraints!(model::Ml, T::Int64,
-                                                hydro::Vector{HydroGenerator}, 
-                                                thermal::Vector{ThermalGenerator},
-                                                problem::String) where {Ml}
+# function add_generation_bid_constraints!(model::Ml, T::Int64,
+#                                                 hydro::Vector{HydroGenerator}, 
+#                                                 thermal::Vector{ThermalGenerator},
+#                                                 problem::String) where {Ml}
 
-    I, J = length(thermal), length(hydro)
+#     I, J = length(thermal), length(hydro)
     
-    if problem == "grid"
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_grid][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ model[:μh][t, hydro[j].number])
-    else
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_market][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_market][t, hydro[j].number] ≤ model[:μh][t, hydro[j].number])
-    end
-end
+#     if problem == "grid"
+#         @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_grid][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
+#         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ model[:μh][t, hydro[j].number])
+#     else
+#         @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_market][t, thermal[i].number] ≤ model[:μt][t, thermal[i].number])
+#         @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_market][t, hydro[j].number] ≤ model[:μh][t, hydro[j].number])
+#     end
+# end
 
-"Create grid generation constraints for generators (hydro and thermal) of all but specific owner based on quantity bids."
+"Create grid generation constraints for generators (hydro and thermal) of all owners based on quantity bids."
 function add_generation_bid_constraints!(model::Ml, T::Int64,
                                                 hydro::Vector{HydroGenerator}, 
                                                 thermal::Vector{ThermalGenerator},
                                                 QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64},
-                                                problem::String) where {Ml}
+                                                problem::String, genco::Int64) where {Ml}
                                             
-    I, J = length(thermal), length(hydro)     
+    thermal_owner = thermal[findall(i -> i == genco, getfield.(thermal, :owner))]
+    hydro_owner   = hydro[findall(i -> i == genco, getfield.(hydro, :owner))]
+
+    thermal_system = thermal[findall(i -> i != genco, getfield.(thermal, :owner))]
+    hydro_system   = hydro[findall(i -> i != genco, getfield.(hydro, :owner))]
+
+    Igc  = length(thermal_owner)
+    Jgc  = length(hydro_owner)
+    Isys = length(thermal_system)
+    Jsys = length(hydro_system)
 
     if problem == "grid"
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_grid][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
+        @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_grid][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
+
+        @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal_system[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_system[i].number] ≤ QBidt_EQ[t, thermal_system[i].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro_system[j].g_min ≤ Lower(model)[:g_grid][t, hydro_system[j].number] ≤ QBidh_EQ[t, hydro_system[j].number])   
     else
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_market][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
+        @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_market][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
+
+        @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro[j].g_min ≤ Lower(model)[:g_market][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
     end
 end
 
