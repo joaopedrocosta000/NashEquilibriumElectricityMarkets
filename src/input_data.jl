@@ -142,7 +142,7 @@ function create_hydro_structs(path::String)
 end
 
 "Creates a vector of company structs."
-function create_company_structs(path::String, T::Int64)
+function create_company_structs(path::String, T::Int64, price_makers::Vector{String})
 
     thermal_df = CSV.read(joinpath(path, "Thermal.csv"), DataFrame)
     hydro_df   = CSV.read(joinpath(path, "Hydro.csv"), DataFrame)
@@ -151,12 +151,19 @@ function create_company_structs(path::String, T::Int64)
     unique_name   = unique(vcat(thermal_df[:, "GENCO_Name"], hydro_df[:, "GENCO_Name"]))
 
     company_df = DataFrames.sort(DataFrame(GENCO = unique_number, GENCO_Name = unique_name), "GENCO")
-    company_df = classify_price_makers(thermal_df, hydro_df, company_df, T)
+    # company_df = classify_price_makers(thermal_df, hydro_df, company_df, T)
     C       = length(unique_number)
     company = Vector{Company}(undef, C)
 
     for c in 1:C
-        company[c] = Company(company_df[c, "GENCO"], String(company_df[c, "GENCO_Name"]), company_df[c, "Price_Maker"])
+        
+        if String(company_df[c, "GENCO_Name"]) in price_makers
+            is_price_maker = true
+        else
+            is_price_maker = false
+        end
+
+        company[c] = Company(company_df[c, "GENCO"], String(company_df[c, "GENCO_Name"]), is_price_maker)
     end
     
     return company
@@ -209,7 +216,7 @@ function classify_price_makers(thermal_df::DataFrame, hydro_df::DataFrame, compa
 end
 
 "Create a dictionary with the input structures."
-function create_input_data(path::String, T::Int64)
+function create_input_data(path::String, T::Int64, price_makers::Vector{String})
 
     dict_input = Dict()
 
@@ -221,7 +228,7 @@ function create_input_data(path::String, T::Int64)
     dict_input["load"]     = create_load_structs(path)
     dict_input["thermal"]  = create_thermal_structs(path, T)
     dict_input["hydro"]    = create_hydro_structs(path)
-    dict_input["company"]  = create_company_structs(path, T)
+    dict_input["company"]  = create_company_structs(path, T, price_makers)
 
     return dict_input
 end

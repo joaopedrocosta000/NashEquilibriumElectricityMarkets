@@ -90,7 +90,6 @@ function clearing!(model::Ml, system::Dict, QBidt_EQ::Matrix{Float64}, QBidh_EQ:
 
     # Controlled flows' limits =======> ADD LATER
 
-
     # Create objective function
     @info("Creating objective function")
     future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(Lower(model), T, hydro)
@@ -149,8 +148,11 @@ function optimal_bid(system::Dict, owner::Int64, price::String,
         set_optimizer_attribute(model, "TimeLimit", time_limit)
     end
 
-    thermal_owner  = findall(i -> i == owner, getfield.(system["thermal"], :owner))
-    hydro_owner    = findall(i -> i == owner, getfield.(system["hydro"], :owner))
+    thermal_owner_idx  = findall(i -> i == owner, getfield.(system["thermal"], :owner))
+    hydro_owner_idx    = findall(i -> i == owner, getfield.(system["hydro"], :owner))
+    thermal_owner      = system["thermal"][thermal_owner_idx]
+    hydro_owner        = system["hydro"][hydro_owner_idx]
+
     thermal        = system["thermal"]
     hydro          = system["hydro"]
     line           = system["line"]
@@ -179,15 +181,55 @@ function optimal_bid(system::Dict, owner::Int64, price::String,
     @info("---------- Creating lower level model ----------")
     clearing!(model, system, QBidt_EQ, QBidh_EQ, PBidt_EQ, PBidh_EQ, genco; T = T)
     
+    optimize!(model)
+    println("Termination status: ", termination_status(model))
+    println("Number of solutions: ", result_count(model))
+    
     ### RETORNAR QUANTIDADES E PREÇOS OFERTADOS
-
+    ### CHECAR O TIPO DO QUE ESTÁ SENDO RETORNADO
+    ### add_price_bid_variables está reclamando do tipo da entrada, por conta da forma de compilar
+    return JuMP.value.(λt), JuMP.value.(λh), JuMP.value.(μt), JuMP.value.(μh)
 end
 
-function nash()
+function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_revenue_max::Int64 = 5, 
+                price::String = "zonal", price_bid_cap::Float64 = 0.4, time_limit = 60 * 60, big_N = 1e6)
 
-    # Cria modelo JumMP FEITO
+    # ADICIONAR PRINT COM RESUMOS DO MODELO
 
-    # Chama a função clearing modificada FEITO
+    PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ = initialize_bids(system, T)
+
+    PBidt_carousel = deepcopy(PBidt_EQ)
+    PBidh_carousel = deepcopy(PBidh_EQ)
+    QBidt_carousel = deepcopy(QBidt_EQ)
+    QBidh_carousel = deepcopy(QBidh_EQ)
+
+    price_maker        = getfield.(system["company"], :price_maker)
+    n_price_makers     = count(price_maker)
+    owner_price_makers = getfield.(system["company"][price_maker], :number)
+
+    flag_keep_bid        = falses(n_price_makers)
+    flag_opt             = falses(n_price_makers)
+    revenue_price_makers = zeros(n_price_makers)
+    iteration            = 0
+    count_revenue        = 0
+    
+    while (flag_keep_bid ≠ trues(n_price_makers) || flag_opt ≠ trues(n_price_makers)) && count_revenue < count_revenue_max && iteration < iteration_max
+
+        flag_keep_bid        = falses(n_price_makers)
+        flag_opt             = falses(n_price_makers)
+        iteration            = 1
+
+        @info("---------- Iteration $i ----------")
+        for owner in owner_price_makers
+
+            @info("Price Maker $owner")
+            λt, λh, μt, μh = optimal_bid(system, owner, price, PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ; 
+                                            T = T, price_bid_cap = price_bid_cap,
+                                            time_limit = time_limit, big_N = big_N)
+
+        end
+
+    end
 
     # Roda carrossel - 2 MATRIZES, UMA DE EQUILÍBRIO OUTRA DO CARROSSEL; NO FINAL DE CADA PASSAGEM DO WHILE, ELAS VÃO SER IGUAIS
     # VAMOS PREENCHENDO A CARROSSEL NAS COLUNAS ASSOCIADAS AO GENCO SENDO OTIMIZADO
@@ -285,4 +327,28 @@ function create_output(system::Dict, model::Ml, T::Int64) where {Ml}
 
 end
 
+function initialize_bids(system::Dict, T::Int64)
+
+    thermal = system["thermal"]
+    hydro   = system["hydro"]
+
+    I, J = length(thermal), length(hydro)
+
+    PBidt_EQ = Matrix{Float64}(undef, T, I)
+    PBidh_EQ = Matrix{Float64}(undef, T, J)
+    QBidt_EQ = Matrix{Float64}(undef, T, I)
+    QBidh_EQ = Matrix{Float64}(undef, T, J)
+
+    for i in 1:I
+        PBidt_EQ[:, i] = ones(T) .* thermal[i].uvc
+        QBidt_EQ[:, i] = thermal[i].g_max
+    end
+
+    for j in 1:J
+        PBidh_EQ[:, j] = ones(T) .* hydro[j].water_value
+        QBidh_EQ[:, j] = ones(T) .* hydro[j].g_max
+    end
+
+    return PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ
+end
 
