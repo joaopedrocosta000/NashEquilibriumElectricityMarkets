@@ -25,6 +25,7 @@ function create_grid_market_cost_function(model::Ml, T::Int64,
     Jgc  = length(hydro_owner)
     Isys = length(thermal_system)
     Jsys = length(hydro_system)
+    B, Z = length(bus), length(zone)  
                                                 
     grid_cost_owner    = sum(sum(Upper(model)[:λt][t, thermal_owner[i].number] * Lower(model)[:p_grid][t, thermal_owner[i].number] for i in 1:Igc) + 
                              sum(Upper(model)[:λh][t, hydro_owner[j].number] * Lower(model)[:g_grid][t, hydro_owner[j].number] for j in 1:Jgc) for t in 1:T) 
@@ -91,9 +92,9 @@ function create_revenue_function(model::Ml, T::Int64,
 
     if price == "zonal"
         return sum(sum((Upper(model)[:πz][t, thermal[i].zone] - thermal[i].uvc) * Lower(model)[:p_grid][t, thermal[i].number] for i in 1:Igc) + 
-                      sum((Upper(model)[:πz][t, hydro[j].zone]) * Lower(model)[:g_grid][t, hydro[j]number] for j in 1:Jgc) for t in 1:T)
+                      sum((Upper(model)[:πz][t, hydro[j].zone]) * Lower(model)[:g_grid][t, hydro[j].number] for j in 1:Jgc) for t in 1:T)
     else
         return sum(sum((Upper(model)[:πb][t, thermal[i].bus] - thermal[i].uvc) * Lower(model)[:p_grid][t, thermal[i].number] for i in 1:Igc) + 
-                      sum((Upper(model)[:πb][t, hydro[j].bus]) * Lower(model)[:g_grid][t, hydro[j]number] for j in 1:Jgc) for t in 1:T)
+                      sum((Upper(model)[:πb][t, hydro[j].bus]) * Lower(model)[:g_grid][t, hydro[j].number] for j in 1:Jgc) for t in 1:T)
     end
 end                                   

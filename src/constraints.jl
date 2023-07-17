@@ -65,15 +65,19 @@ function add_generation_bid_constraints!(model::Ml, T::Int64,
     Isys = length(thermal_system)
     Jsys = length(hydro_system)
 
-    if problem == "grid"
-        @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_grid][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
+    if problem == "grid"        
+        @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_owner[i].number])
+        @constraint(Lower(model), [t = 1:T, i = 1:Igc], Lower(model)[:p_grid][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_grid][t, hydro_owner[j].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], Lower(model)[:g_grid][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
 
         @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal_system[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_system[i].number] ≤ QBidt_EQ[t, thermal_system[i].number])
         @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro_system[j].g_min ≤ Lower(model)[:g_grid][t, hydro_system[j].number] ≤ QBidh_EQ[t, hydro_system[j].number])   
     else
-        @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_market][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
+        @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal_owner[i].number])
+        @constraint(Lower(model), [t = 1:T, i = 1:Igc], Lower(model)[:p_market][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_market][t, hydro_owner[j].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], Lower(model)[:g_market][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
 
         @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
         @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro[j].g_min ≤ Lower(model)[:g_market][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
@@ -143,7 +147,6 @@ function add_balance_constraints!(model::Ml, T::Int64, system::Dict, problem::St
                                                         == sum(load[d].value[t] for d ∈ findall(d -> d == z, getfield.(load, :zone)); init = 0.0)
                                                         - model[:δ_market][t, z])
 
-        
         for z in 1:Z            
             idx_zone = findall(d -> d == z, getfield.(load, :zone))   
             

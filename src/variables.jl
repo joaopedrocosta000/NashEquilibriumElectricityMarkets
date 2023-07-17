@@ -48,7 +48,7 @@ function add_dispatch_variables!(model::Ml, T::Int64,
     @variable(model, δ_market[t = 1:T, z = 1:Z])
 end
 
-function add_hydro_variables!(model::Model, T::Int64,
+function add_hydro_variables!(model::Ml, T::Int64,
                               hydro::Vector{HydroGenerator},
                               maximum_travel_time::Int64) where {Ml}
 
@@ -62,3 +62,14 @@ function add_hydro_variables!(model::Model, T::Int64,
     @variable(model, s_market[-maximum_travel_time + 1:T, j = 1:J])
 end
 
+"Market and Grid Operators' clearing price as the dual variable balance constraints"
+function add_shadow_price_variable!(model::Ml, T::Int64, 
+                                        bus::Vector{Bus},
+                                        zone::Vector{Zone}) where {Ml}
+
+    B = length(bus)
+    Z = length(zone)
+                                        
+    @variable(Upper(model), πb[t = 1:T, b = 1:B] >= 0, BilevelJuMP.DualOf.(Lower(model)[:KCL_grid][t, b]))
+    @variable(Upper(model), πz[t = 1:T, z = 1:Z] >= 0, BilevelJuMP.DualOf.(Lower(model)[:KCL_market][t, z]))
+end

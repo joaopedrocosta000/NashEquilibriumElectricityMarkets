@@ -161,26 +161,33 @@ function optimal_bid(system::Dict, owner::Int64, price::String,
     zone           = system["zone"]
     load           = system["load"]
 
-    @info("---------- Creating upper level model ----------")
+    #PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ = NashEquilibriumElectricityMarkets.initialize_bids(system, T)
+
+    @info("---------- Creating upper level variables ----------")
     # Adding decision variables for the upper level model
     @info("Adding price bid variables for genco $(owner)")
-    add_price_bid_variables!(Upper(model), T, thermal_owner, hydro_owner)
+    NashEquilibriumElectricityMarkets.add_price_bid_variables!(Upper(model), T, thermal_owner, hydro_owner)
     @info("Adding quantity bid variables for genco $(owner)")
-    add_quantity_bid_variables!(Upper(model), T, thermal_owner, hydro_owner)
+    NashEquilibriumElectricityMarkets.add_quantity_bid_variables!(Upper(model), T, thermal_owner, hydro_owner)
 
-    # Adding constraints for the upper level model
+    @info("---------- Creating lower level complete model ----------")
+    NashEquilibriumElectricityMarkets.clearing!(model, system, QBidt_EQ, QBidh_EQ, PBidt_EQ, PBidh_EQ, owner; T = T)
+
+    @info("---------- Creating dual variables of balance constraints ----------")
+    NashEquilibriumElectricityMarkets.add_shadow_price_variable!(model, T, bus, zone)
+                                    
+    @info("---------- Creating upper level constraints ----------")
     @info("Adding price bid constraints for genco $(owner)")
-    add_price_bid_constraints!(Upper(model), price_bid_cap, T, hydro_owner, thermal_owner)
+    NashEquilibriumElectricityMarkets.add_price_bid_constraints!(Upper(model), price_bid_cap, T, hydro_owner, thermal_owner)
     @info("Adding quantity bid constraints for genco $(owner)")
-    add_quantity_bid_constraints!(Upper(model), T, hydro_owner, thermal_owner)
+    NashEquilibriumElectricityMarkets.add_quantity_bid_constraints!(Upper(model), T, hydro_owner, thermal_owner)
     
-    # Create objective function for the upper level model
+    @info("---------- Creating upper level obj. function ----------")
     @info("Creating objective function for genco $(owner)")
-    create_revenue_function(Upper(model), T, hydro_owner, thermal_owner, bus, zone, price)    
+    revenue_owner = NashEquilibriumElectricityMarkets.create_revenue_function(model, T, hydro_owner, thermal_owner, bus, zone, price)   
+                                        
+    @objective(Upper(model), Max, revenue_owner)
 
-    @info("---------- Creating lower level model ----------")
-    clearing!(model, system, QBidt_EQ, QBidh_EQ, PBidt_EQ, PBidh_EQ, genco; T = T)
-    
     optimize!(model)
     println("Termination status: ", termination_status(model))
     println("Number of solutions: ", result_count(model))
@@ -196,7 +203,7 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
 
     # ADICIONAR PRINT COM RESUMOS DO MODELO
 
-    PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ = initialize_bids(system, T)
+    PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ = NashEquilibriumElectricityMarkets.initialize_bids(system, T)
 
     PBidt_carousel = deepcopy(PBidt_EQ)
     PBidh_carousel = deepcopy(PBidh_EQ)
