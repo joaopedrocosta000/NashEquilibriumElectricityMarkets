@@ -191,17 +191,13 @@ function optimal_bid(system::Dict, owner::Int64, price::String,
     optimize!(model)
     println("Termination status: ", termination_status(model))
     println("Number of solutions: ", result_count(model))
-    
-    ### RETORNAR QUANTIDADES E PREÇOS OFERTADOS
-    ### CHECAR O TIPO DO QUE ESTÁ SENDO RETORNADO
-    ### add_price_bid_variables está reclamando do tipo da entrada, por conta da forma de compilar
-    return JuMP.value.(λt), JuMP.value.(λh), JuMP.value.(μt), JuMP.value.(μh)
+
+    return round.(JuMP.value.(λt).data, digits = 2), round.(JuMP.value.(λh).data, digits = 2), 
+                round.(JuMP.value.(μt).data, digits = 2), round.(JuMP.value.(μh).data, digits = 2), result_count(model)
 end
 
 function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_revenue_max::Int64 = 5, 
                 price::String = "zonal", price_bid_cap::Float64 = 0.4, time_limit = 60 * 60, big_N = 1e6)
-
-    # ADICIONAR PRINT COM RESUMOS DO MODELO
 
     PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ = NashEquilibriumElectricityMarkets.initialize_bids(system, T)
 
@@ -222,18 +218,109 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
     
     while (flag_keep_bid ≠ trues(n_price_makers) || flag_opt ≠ trues(n_price_makers)) && count_revenue < count_revenue_max && iteration < iteration_max
 
-        flag_keep_bid        = falses(n_price_makers)
-        flag_opt             = falses(n_price_makers)
-        iteration            = 1
+        flag_keep_bid = falses(n_price_makers)
+        flag_opt      = falses(n_price_makers)
+        iteration     += 1
 
-        @info("---------- Iteration $i ----------")
-        for owner in owner_price_makers
+        @info("---------- Iteration $iteration ----------")
+        for (i, owner) in enumerate(owner_price_makers)
+
+            flag_keep_bid_owner_thermal = false
+            flag_keep_bid_owner_hydro   = false
 
             @info("Price Maker $owner")
-            λt, λh, μt, μh = optimal_bid(system, owner, price, PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ; 
+            λt, λh, μt, μh, solution_count = optimal_bid(system, owner, price, PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ; 
                                             T = T, price_bid_cap = price_bid_cap,
                                             time_limit = time_limit, big_N = big_N)
 
+            thermal_owner_idx  = findall(i -> i == owner, getfield.(system["thermal"], :owner))
+            hydro_owner_idx    = findall(i -> i == owner, getfield.(system["hydro"], :owner))
+
+            if solution_count > 0
+                @info("Optimal solutions found for owner $(owner)!")
+                flag_opt[i] = true
+        
+                if !isempty(thermal_owner_idx)
+                    PBidt_carousel[:, thermal_owner_idx] = μt
+                    QBidt_carousel[:, thermal_owner_idx] = λt
+
+                    if (PBidt_carousel[:, thermal_owner_idx] == PBidt_EQ[:, thermal_owner_idx]) && (QBidt_carousel[:, thermal_owner_idx] == QBidt_EQ[:, thermal_owner_idx])
+                        flag_keep_bid_owner_thermal = true
+                    end
+                end
+
+                if !isempty(hydro_owner_idx)
+                    PBidh_carousel[:, hydro_owner_idx] = μh
+                    QBidh_carousel[:, hydro_owner_idx] = λh
+
+                    if (PBidh_carousel[:, thermal_owner_idx] == PBidh_EQ[:, thermal_owner_idx]) && (QBidh_carousel[:, thermal_owner_idx] == QBidh_EQ[:, thermal_owner_idx])
+                        flag_keep_bid_owner_hydro = true
+                    end
+                end
+
+                if flag_keep_bid_owner_thermal && flag_keep_bid_owner_hydro
+                    flag_keep_bid[i] = true
+                    @info("Player $(owner) kept bid!")
+                else
+                    @info("Player $(owner) updated bid!")    
+                end
+            else
+                @info("Optimal bid not found for owner $(owner)!")
+            end
+        end
+
+        PBidt_EQ[:, :] = PBidt_carousel[:, :]
+        PBidh_EQ[:, :] = PBidh_carousel[:, :]
+        QBidt_EQ[:, :] = QBidt_carousel[:, :]
+        QBidh_EQ[:, :] = QBidh_carousel[:, :]
+
+        model = Model(Gurobi.Optimizer)
+
+        clearing!(model, system, QBidt_EQ, QBidh_EQ, PBidt_EQ, PBidh_EQ, owner; T = T)
+
+        optimize!(model)
+        println("Termination status: ", termination_status(model))
+        println("Number of solutions: ", result_count(model))
+        
+        if result_count(model) ≥ 1
+            @info("Clearing: optimal or time limit")
+            output_clearing = create_output(system, model, T)
+        else
+            @info("Clearing: infeasible or unbounded")
+            output_clearing = nothing
+        end
+        
+        # ARMAZENAR RESULTADOS DO CLEARING
+        # CALCULAR count_revenue
+        # EXPORTAR RESULTADOS (FAZER TAMBÉM PARA AS FUNÇÕES DE CUSTOS AUDITADOS E EQUILÍBRIO COMPETITIVO)
+       
+        println("Equilibrium Vector: ", flag_keep_bid)
+        println("Optimal Vector: ", flag_opt)
+        println("Revenue flag: ", flag_rev)
+
+        if all(flag_opt)
+
+            if all(flag_keep_bid)
+                println("Equilibrium point found.")
+            else
+                if count_revenue ≥ count_revenue_max 
+                    println("Equilibrium point found through revenue.")
+                else 
+                    println("Equilibrium point not found.")
+                end
+            end
+        else
+
+            if all(flag_keep_bid)
+                println("Equilibrium candidate point found. New iteration required.")
+            else
+                if count_revenue ≥ count_revenue_max 
+                    println("Equilibrium candidate point found through revenue. New iteration required.")
+                    count_revenue_max = count_revenue_max + 1
+                else 
+                    println("Equilibrium point not found.")
+                end
+            end
         end
 
     end

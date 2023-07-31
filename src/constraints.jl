@@ -4,8 +4,10 @@ function add_price_bid_constraints!(model::Ml, η::Float64, T::Int64,
                                         thermal::Vector{ThermalGenerator}) where {Ml}
     
     Igc, Jgc = length(thermal), length(hydro)
-    @constraint(model, [t = 1:T, i = 1:Igc], 0 ≤ model[:λt][t, thermal[i].number] ≤ (1 + η) * thermal[i].uvc)
-    @constraint(model, [t = 1:T, j = 1:Jgc], 0 ≤ model[:λh][t, hydro[j].number] ≤ (1 + η) * hydro[j].water_value)
+    @constraint(model, [t = 1:T, i = 1:Igc], 0 ≤ model[:λt][t, thermal[i].number])
+    @constraint(model, [t = 1:T, i = 1:Igc], model[:λt][t, thermal[i].number] ≤ (1 + η) * thermal[i].uvc)
+    @constraint(model, [t = 1:T, j = 1:Jgc], 0 ≤ model[:λh][t, hydro[j].number] )
+    @constraint(model, [t = 1:T, j = 1:Jgc], model[:λh][t, hydro[j].number] ≤ (1 + η) * hydro[j].water_value)
 end
 
 "Create quantity bid constraints for generators (hydro and thermal) of specific owner."
@@ -14,8 +16,10 @@ function add_quantity_bid_constraints!(model::Ml, T::Int64,
                                             thermal::Vector{ThermalGenerator}) where {Ml}
 
     Igc, Jgc = length(thermal), length(hydro)            
-    @constraint(model, [t = 1:T, i = 1:Igc], thermal[i].g_min[t] ≤ model[:μt][t, thermal[i].number] ≤ thermal[i].g_max[t])
-    @constraint(model, [t = 1:T, j = 1:Jgc], hydro[j].g_min ≤ model[:μh][t, hydro[j].number] ≤ hydro[j].g_max)
+    @constraint(model, [t = 1:T, i = 1:Igc], thermal[i].g_min[t] ≤ model[:μt][t, thermal[i].number])
+    @constraint(model, [t = 1:T, i = 1:Igc], model[:μt][t, thermal[i].number] ≤ thermal[i].g_max[t])
+    @constraint(model, [t = 1:T, j = 1:Jgc], hydro[j].g_min ≤ model[:μh][t, hydro[j].number])
+    @constraint(model, [t = 1:T, j = 1:Jgc], model[:μh][t, hydro[j].number] ≤ hydro[j].g_max)
 end
 
 "Create ramp constraints for generators (hydro and thermal) of specific/all owners."
@@ -71,16 +75,20 @@ function add_generation_bid_constraints!(model::Ml, T::Int64,
         @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_grid][t, hydro_owner[j].number])
         @constraint(Lower(model), [t = 1:T, j = 1:Jgc], Lower(model)[:g_grid][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
 
-        @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal_system[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_system[i].number] ≤ QBidt_EQ[t, thermal_system[i].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro_system[j].g_min ≤ Lower(model)[:g_grid][t, hydro_system[j].number] ≤ QBidh_EQ[t, hydro_system[j].number])   
+        @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal_system[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_system[i].number])
+        @constraint(Lower(model), [t = 1:T, i = 1:Isys], Lower(model)[:p_grid][t, thermal_system[i].number] ≤ QBidt_EQ[t, thermal_system[i].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro_system[j].g_min ≤ Lower(model)[:g_grid][t, hydro_system[j].number])   
+        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], Lower(model)[:g_grid][t, hydro_system[j].number] ≤ QBidh_EQ[t, hydro_system[j].number])   
     else
         @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal_owner[i].number])
         @constraint(Lower(model), [t = 1:T, i = 1:Igc], Lower(model)[:p_market][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
         @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_market][t, hydro_owner[j].number])
         @constraint(Lower(model), [t = 1:T, j = 1:Jgc], Lower(model)[:g_market][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
 
-        @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro[j].g_min ≤ Lower(model)[:g_market][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
+        @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal[i].number])
+        @constraint(Lower(model), [t = 1:T, i = 1:Isys], Lower(model)[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
+        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro[j].g_min ≤ Lower(model)[:g_market][t, hydro[j].number])   
+        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], Lower(model)[:g_market][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
     end
 end
 
@@ -93,11 +101,15 @@ function add_generation_capacity_constraints!(model::Ml, T::Int64,
     I, J = length(thermal), length(hydro)     
 
     if problem == "grid"
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_grid][t, thermal[i].number] ≤ thermal[i].g_max[t])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number] ≤ hydro[j].g_max)
+        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_grid][t, thermal[i].number])
+        @constraint(model, [t = 1:T, i = 1:I], model[:p_grid][t, thermal[i].number] ≤ thermal[i].g_max[t])
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_grid][t, hydro[j].number])
+        @constraint(model, [t = 1:T, j = 1:J], model[:g_grid][t, hydro[j].number] ≤ hydro[j].g_max)
     else
-        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_market][t, thermal[i].number] ≤ thermal[i].g_max[t])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_market][t, hydro[j].number] ≤ hydro[j].g_max)
+        @constraint(model, [t = 1:T, i = 1:I], thermal[i].g_min[t] ≤ model[:p_market][t, thermal[i].number])
+        @constraint(model, [t = 1:T, i = 1:I], model[:p_market][t, thermal[i].number] ≤ thermal[i].g_max[t])
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].g_min ≤ model[:g_market][t, hydro[j].number])
+        @constraint(model, [t = 1:T, j = 1:J], model[:g_market][t, hydro[j].number] ≤ hydro[j].g_max)
     end
 end
 
@@ -126,11 +138,13 @@ function add_balance_constraints!(model::Ml, T::Int64, system::Dict, problem::St
             idx_bus = findall(d -> d == b, getfield.(load, :bus))   
             
             if !isempty(idx_bus)
-                @constraint(model, [t = 1:T, b = 1:B], 0 ≤ model[:δ_grid][t, b] ≤ sum(load[d].value[t] for d ∈ findall(d -> d == b, getfield.(load, :bus)); init = 0.0))
+                @constraint(model, [t = 1:T, b = 1:B], 0 ≤ model[:δ_grid][t, b])
+                @constraint(model, [t = 1:T, b = 1:B], model[:δ_grid][t, b] ≤ sum(load[d].value[t] for d ∈ findall(d -> d == b, getfield.(load, :bus)); init = 0.0))
             end
         end
         
-        @constraint(model, [t = 1:T, l = 1:L], line[l].f_min ≤ model[:f_grid][t, l] ≤ line[l].f_max)
+        @constraint(model, [t = 1:T, l = 1:L], line[l].f_min ≤ model[:f_grid][t, l])
+        @constraint(model, [t = 1:T, l = 1:L], model[:f_grid][t, l] ≤ line[l].f_max)
 
         @constraint(model, [t = 1:T, l = 1:L], model[:f_grid][t, l] == (model[:θ][t, line[l].from] - model[:θ][t, line[l].to])/line[l].reactance)
     else
@@ -151,11 +165,12 @@ function add_balance_constraints!(model::Ml, T::Int64, system::Dict, problem::St
             idx_zone = findall(d -> d == z, getfield.(load, :zone))   
             
             if !isempty(idx_zone)
-                @constraint(model, [t = 1:T, z = 1:Z], 0 ≤ model[:δ_market][t, z] ≤ sum(load[d].value[t] for d ∈ findall(d -> d == z, getfield.(load, :zone)); init = 0.0))
+                @constraint(model, [t = 1:T, z = 1:Z], 0 ≤ model[:δ_market][t, z])
+                @constraint(model, [t = 1:T, z = 1:Z], model[:δ_market][t, z] ≤ sum(load[d].value[t] for d ∈ findall(d -> d == z, getfield.(load, :zone)); init = 0.0))
             end
         end
-
-        @constraint(model, [t = 1:T, e = 1:E], exchange[e].f_min ≤ model[:f_market][t, e] ≤ exchange[e].f_max)
+        @constraint(model, [t = 1:T, e = 1:E], exchange[e].f_min ≤ model[:f_market][t, e])
+        @constraint(model, [t = 1:T, e = 1:E], model[:f_market][t, e] ≤ exchange[e].f_max)
     end
 end
 
@@ -170,7 +185,8 @@ function add_hydro_constraints!(model::Ml, T::Int64,
 
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_grid][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s_grid][t, hydro[j].number])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_grid][t, hydro[j].number] ≤ hydro[j].v_max)
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_grid][t, hydro[j].number])
+        @constraint(model, [t = 1:T, j = 1:J], model[:v_grid][t, hydro[j].number] ≤ hydro[j].v_max)
 
         @constraint(model, [t = 1:T, j = 1:J], model[:g_grid][t, hydro[j].number] == hydro[j].ρ * model[:q_grid][t, hydro[j].number])
         @constraint(model, [j = 1:J], model[:v_grid][0, hydro[j].number] == hydro[j].v_initial)
@@ -186,7 +202,8 @@ function add_hydro_constraints!(model::Ml, T::Int64,
 
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q_market][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s_market][t, hydro[j].number])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_market][t, hydro[j].number] ≤ hydro[j].v_max)
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v_market][t, hydro[j].number])
+        @constraint(model, [t = 1:T, j = 1:J], model[:v_market][t, hydro[j].number] ≤ hydro[j].v_max)
 
         @constraint(model, [t = 1:T, j = 1:J], model[:g_market][t, hydro[j].number] == hydro[j].ρ * model[:q_market][t, hydro[j].number])
         @constraint(model, [j = 1:J], model[:v_market][0, hydro[j].number] == hydro[j].v_initial)
@@ -202,7 +219,8 @@ function add_hydro_constraints!(model::Ml, T::Int64,
         
         @constraint(model, [t = 1:T, j = 1:J], hydro[j].q_min ≤ model[:q][t, hydro[j].number])
         @constraint(model, [t = 1:T, j = 1:J], 0 ≤ model[:s][t, hydro[j].number])
-        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v][t, hydro[j].number] ≤ hydro[j].v_max)
+        @constraint(model, [t = 1:T, j = 1:J], hydro[j].v_min ≤ model[:v][t, hydro[j].number])
+        @constraint(model, [t = 1:T, j = 1:J], model[:v][t, hydro[j].number] ≤ hydro[j].v_max)
 
         @constraint(model, [t = 1:T, j = 1:J], model[:g_grid][t, hydro[j].number] == hydro[j].ρ * model[:q][t, hydro[j].number])
         @constraint(model, [j = 1:J], model[:v][0, hydro[j].number] == hydro[j].v_initial)
