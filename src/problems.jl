@@ -215,6 +215,12 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
     revenue_price_makers = zeros(n_price_makers)
     iteration            = 0
     count_revenue        = 0
+
+    vec_output_clearing  = []
+    vec_PBidt_EQ         = []
+    vec_PBidh_EQ         = []
+    vec_QBidt_EQ         = []
+    vec_QBidh_EQ         = []
     
     while (flag_keep_bid ≠ trues(n_price_makers) || flag_opt ≠ trues(n_price_makers)) && count_revenue < count_revenue_max && iteration < iteration_max
 
@@ -289,14 +295,19 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
             @info("Clearing: infeasible or unbounded")
             output_clearing = nothing
         end
-        
-        # ARMAZENAR RESULTADOS DO CLEARING
-        # CALCULAR count_revenue
-        # EXPORTAR RESULTADOS (FAZER TAMBÉM PARA AS FUNÇÕES DE CUSTOS AUDITADOS E EQUILÍBRIO COMPETITIVO)
+
+        push!(vec_output_clearing, output_clearing)
+        push!(vec_PBidt_EQ, PBidt_EQ)
+        push!(vec_PBidh_EQ, PBidh_EQ)
+        push!(vec_QBidt_EQ, QBidt_EQ)
+        push!(vec_QBidh_EQ, QBidh_EQ)
+
+        count_revenue = get_count_revenue(vec_output_clearing, price)
        
         println("Equilibrium Vector: ", flag_keep_bid)
         println("Optimal Vector: ", flag_opt)
-        println("Revenue flag: ", flag_rev)
+        price == "zonal" ? println("Revenue: ", vec_output_clearing[iteration].revenue_zonal) : println("Revenue: ", vec_output_clearing[iteration].revenue_nodal)
+        println("Revenue count flag: ", count_revenue)
 
         if all(flag_opt)
 
@@ -325,8 +336,10 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
 
     end
 
-    # Roda carrossel - 2 MATRIZES, UMA DE EQUILÍBRIO OUTRA DO CARROSSEL; NO FINAL DE CADA PASSAGEM DO WHILE, ELAS VÃO SER IGUAIS
-    # VAMOS PREENCHENDO A CARROSSEL NAS COLUNAS ASSOCIADAS AO GENCO SENDO OTIMIZADO
+    # EXPORTAR RESULTADOS (FAZER TAMBÉM PARA AS FUNÇÕES DE CUSTOS AUDITADOS E EQUILÍBRIO COMPETITIVO)
+    # exportar csv a partir do output criado
+    # mkdir("Nome") cria uma pasta com esse Nome
+    # Usar como dado de entrada um nome passado pelo usuário
     
 end
 
@@ -382,9 +395,9 @@ function calc_revenue(system::Dict, output_grid::OutputGrid, output_market::Outp
 
         end
 
-        revenue_nodal[k]  = revenue_nodal_k
-        revenue_zonal[k]  = revenue_zonal_k
-        revenue_uplift[k] = revenue_uplift_k
+        revenue_nodal[k]  = round(revenue_nodal_k, digits = 2)
+        revenue_zonal[k]  = round(revenue_zonal_k, digits = 2)
+        revenue_uplift[k] = round(revenue_uplift_k, digits = 2)
     end
 
     revenue_df = DataFrame(owner = owner_list, revenue_nodal = revenue_nodal, revenue_zonal = revenue_zonal, revenue_uplift = revenue_uplift)
@@ -446,3 +459,20 @@ function initialize_bids(system::Dict, T::Int64)
     return PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ
 end
 
+function get_count_revenue(vec_output_clearing::Vector{Output}, price::String)
+    
+    iteration = length(vec_output_clearing)
+    revenue   = []
+
+    for i in 1:iteration
+        if !isnothing(vec_output_clearing[i])
+            if price == "zonal"
+                push!(revenue, vec_output_clearing[i].revenue_zonal)
+            else
+                push!(revenue, vec_output_clearing[i].revenue_nodal)
+            end
+        end
+    end
+
+    return count(isequal.([revenue[end]], revenue[1:end - 1])) + 1      
+end

@@ -109,10 +109,3 @@ struct Output
     market::OutputMarket
     revenue::DataFrame
 end
-
-
-
-
-
-
-
