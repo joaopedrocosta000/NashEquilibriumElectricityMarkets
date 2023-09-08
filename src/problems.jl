@@ -99,7 +99,7 @@ function clearing!(model::Ml, system::Dict, QBidt_EQ::Matrix{Float64}, QBidh_EQ:
 
 end
 
-function audited_costs(system::Dict; T::Int64 = 24)
+function audited_costs(system::Dict, path::String; T::Int64 = 24)
     model = Model(Gurobi.Optimizer)
     # set_optimizer_attribute(model, "DualReductions", 0)
     clearing!(model, system, "audited_costs"; T = 24)
@@ -110,14 +110,19 @@ function audited_costs(system::Dict; T::Int64 = 24)
     
     if result_count(model) ≥ 1
         println("Audited Costs: optimal or time limit")
-        return create_output(system, model, T)
+        audited_costs_path = joinpath(path, "Output", "Audited_Costs")
+        mkpath(audited_costs_path)
+        output = create_output(system, model, T)
+        export_results(output, audited_costs_path)
+        println("Results exported to Audited Costs default output path")
+        return output
     else
         println("Audited Costs: infeasible or unbounded")
         return nothing
     end
 end
 
-function competitive_equilibrium(system::Dict; T::Int64 = 24)
+function competitive_equilibrium(system::Dict, path::String; T::Int64 = 24)
     model = Model(Gurobi.Optimizer)
     # set_optimizer_attribute(model, "DualReductions", 0)
     clearing!(model, system, "competitive"; T = 24)
@@ -128,7 +133,12 @@ function competitive_equilibrium(system::Dict; T::Int64 = 24)
     
     if result_count(model) ≥ 1
         println("Competitive Equilibrium: optimal or time limit")
-        return create_output(system, model, T)
+        competitive_equilibrium_path = joinpath(path, "Output", "Competitive_Equilibrium")
+        mkpath(competitive_equilibrium_path)
+        output = create_output(system, model, T)
+        export_results(output, competitive_equilibrium_path)
+        println("Results exported to Competitive Equilibrium default output path")
+        return output
     else
         println("Competitive Equilibrium: infeasible or unbounded")
         return nothing
@@ -221,7 +231,10 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
     vec_PBidh_EQ         = []
     vec_QBidt_EQ         = []
     vec_QBidh_EQ         = []
-    
+
+    history_path = joinpath(path, "Output", "Nash_$price", "History")
+    mkpath(history_path)
+     
     while (flag_keep_bid ≠ trues(n_price_makers) || flag_opt ≠ trues(n_price_makers)) && count_revenue < count_revenue_max && iteration < iteration_max
 
         flag_keep_bid = falses(n_price_makers)
@@ -334,13 +347,14 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
             end
         end
 
+        history_path_iteration = mkpath(joinpath(history_path, "Iteration $iteration"))
+
+        export_results(vec_output_clearing[end], history_path_iteration)
+        export_nash_results(vec_PBidt_EQ[end], vec_PBidh_EQ[end], vec_QBidt_EQ[end], vec_QBidh_EQ[end], 
+                             flag_opt, flag_keep_bid, count_revenue, history_path_iteration)
     end
 
-    # EXPORTAR RESULTADOS (FAZER TAMBÉM PARA AS FUNÇÕES DE CUSTOS AUDITADOS E EQUILÍBRIO COMPETITIVO)
-    # exportar csv a partir do output criado
-    # mkdir("Nome") cria uma pasta com esse Nome
-    # Usar como dado de entrada um nome passado pelo usuário
-    
+    # falta exportação final e falta matriz parcial com todos os resultados   
 end
 
 function calc_revenue(system::Dict, output_grid::OutputGrid, output_market::OutputMarket, T::Int64)
@@ -475,4 +489,43 @@ function get_count_revenue(vec_output_clearing::Vector{Output}, price::String)
     end
 
     return count(isequal.([revenue[end]], revenue[1:end - 1])) + 1      
+end
+
+function export_results(output::Output, path::String)
+
+    CSV.write(joinpath(path, "grid_thermal_dispatch.csv"), DataFrame(output.grid.p, :auto))
+    CSV.write(joinpath(path, "grid_hydro_dispatch.csv"), DataFrame(output.grid.g, :auto))
+    CSV.write(joinpath(path, "grid_flow.csv"), DataFrame(output.grid.f, :auto))
+    CSV.write(joinpath(path, "grid_hydro_volumes.csv"), DataFrame(output.grid.v, :auto))
+    CSV.write(joinpath(path, "grid_hydro_turbined_outflow.csv"), DataFrame(output.grid.q, :auto))
+    CSV.write(joinpath(path, "grid_hydro_spillage.csv"), DataFrame(output.grid.s, :auto))
+    CSV.write(joinpath(path, "grid_deficit.csv"), DataFrame(output.grid.δ, :auto))
+    CSV.write(joinpath(path, "grid_voltage_angle.csv"), DataFrame(output.grid.θ, :auto))
+    CSV.write(joinpath(path, "grid_nodal_price.csv"), DataFrame(output.grid.nodal_price, :auto))
+
+    CSV.write(joinpath(path, "market_thermal_dispatch.csv"), DataFrame(output.market.p, :auto))
+    CSV.write(joinpath(path, "market_hydro_dispatch.csv"), DataFrame(output.market.g, :auto))
+    CSV.write(joinpath(path, "market_flow.csv"), DataFrame(output.market.f, :auto))
+    CSV.write(joinpath(path, "market_hydro_volumes.csv"), DataFrame(output.market.v, :auto))
+    CSV.write(joinpath(path, "market_hydro_turbined_outflow.csv"), DataFrame(output.market.q, :auto))
+    CSV.write(joinpath(path, "market_hydro_spillage.csv"), DataFrame(output.market.s, :auto))
+    CSV.write(joinpath(path, "market_deficit.csv"), DataFrame(output.market.δ, :auto))
+    CSV.write(joinpath(path, "market_zonal_price.csv"), DataFrame(output.market.zonal_price, :auto))
+
+    CSV.write(joinpath(path, "revenues.csv"), output.revenue)
+end
+
+function export_nash_results(PBidt_EQ::Matrix{Float64}, PBidh_EQ::Matrix{Float64}, QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64}, 
+                             flag_opt::Vector{Bool}, flag_keep_bid::Vector{Bool}, count_revenue::Int64, path::String)
+
+    CSV.write(joinpath(path, "thermal_price_bid.csv"), DataFrame(PBidt_EQ, :auto))
+    CSV.write(joinpath(path, "thermal_quantity_bid.csv"), DataFrame(QBidt_EQ, :auto))
+    
+    CSV.write(joinpath(path, "hydro_price_bid.csv"), DataFrame(PBidh_EQ, :auto))
+    CSV.write(joinpath(path, "hydro_quantity_bid.csv"), DataFrame(QBidh_EQ, :auto))
+    
+    CSV.write(joinpath(path, "flag_keep_bid.csv"), DataFrame(flag_keep_bid[:, :], :auto))
+    CSV.write(joinpath(path, "flag_opt.csv"), DataFrame(flag_opt[:, :], :auto))
+    CSV.write(joinpath(path, "count_revenue.csv"), DataFrame([count_revenue][:, :], :auto))
+    
 end
