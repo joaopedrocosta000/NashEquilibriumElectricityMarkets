@@ -1,0 +1,4 @@
+HGenerator;HGenerator_cod;Name;Ghbus;Ghbus_Name;GENCO;GENCO_Name;Ghzone;Ghzone_Name;Qhmax;Qhmin;Rup;Rdown;Vmax;Vmin;Vi;p;pc;WV
+1;1;Hydro1;2;Bus2;3;GENCO3;1;Zone1;443.038;0;500;500;1050;400;750;1.58;1.95;275
+2;2;Hydro2;3;Bus3;1;GENCO1;2;Zone2;862.069;0;600;600;2200;900;1550;0.87;1.1;122
+3;3;Hydro3;3;Bus3;2;GENCO2;2;Zone2;879.121;0;700;700;2800;1000;1950;0.91;0.91;68

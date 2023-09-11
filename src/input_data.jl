@@ -172,7 +172,7 @@ end
 "Verifies if a generator is a small gen."
 is_small_gen(name::Sl) where {Sl} = split(name, " ")[1] == "Small"
 
-"Classifies companies as prices makers or price takers."
+"Alternative classification for companies as prices makers or price takers."
 function classify_price_makers(thermal_df::DataFrame, hydro_df::DataFrame, company_df::DataFrame, T::Int64) 
 
     ρ           = hydro_df[:, "p"]
@@ -216,7 +216,7 @@ function classify_price_makers(thermal_df::DataFrame, hydro_df::DataFrame, compa
 end
 
 "Create a dictionary with the input structures."
-function create_input_data(path::String, T::Int64, price_makers::Vector{String})
+function create_input_data(path::String, price_makers::Vector{String}; T::Int64 = 24)
 
     dict_input = Dict()
 

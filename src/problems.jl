@@ -171,7 +171,6 @@ function optimal_bid(system::Dict, owner::Int64, price::String,
     zone           = system["zone"]
     load           = system["load"]
 
-    #PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ = NashEquilibriumElectricityMarkets.initialize_bids(system, T)
 
     @info("---------- Creating upper level variables ----------")
     # Adding decision variables for the upper level model
@@ -206,7 +205,7 @@ function optimal_bid(system::Dict, owner::Int64, price::String,
                 round.(JuMP.value.(μt).data, digits = 2), round.(JuMP.value.(μh).data, digits = 2), result_count(model)
 end
 
-function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_revenue_max::Int64 = 5, 
+function nash(system::Dict, path::String; T::Int64 = 24, iteration_max::Int64 = 100, count_revenue_max::Int64 = 5, 
                 price::String = "zonal", price_bid_cap::Float64 = 0.4, time_limit = 60 * 60, big_N = 1e6)
 
     PBidt_EQ, PBidh_EQ, QBidt_EQ, QBidh_EQ = NashEquilibriumElectricityMarkets.initialize_bids(system, T)
@@ -222,7 +221,6 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
 
     flag_keep_bid        = falses(n_price_makers)
     flag_opt             = falses(n_price_makers)
-    revenue_price_makers = zeros(n_price_makers)
     iteration            = 0
     count_revenue        = 0
 
@@ -354,7 +352,10 @@ function nash(system::Dict; T::Int64 = 24, iteration_max::Int64 = 100, count_rev
                              flag_opt, flag_keep_bid, count_revenue, history_path_iteration)
     end
 
-    # falta exportação final e falta matriz parcial com todos os resultados   
+    output_path = joinpath(path, "Output", "Nash_$price")
+    export_results(vec_output_clearing[iteration], output_path)
+    export_nash_results(vec_PBidt_EQ[iteration], vec_PBidh_EQ[iteration], vec_QBidt_EQ[iteration], vec_QBidh_EQ[iteration], 
+                             flag_opt, flag_keep_bid, count_revenue, output_path)
 end
 
 function calc_revenue(system::Dict, output_grid::OutputGrid, output_market::OutputMarket, T::Int64)
