@@ -1,12 +1,16 @@
-using JuMP, BilevelJuMP, CSV, DataFrames, Gurobi
 import Pkg
 Pkg.activate(".")
 Pkg.instantiate()
 include("src/NashEquilibriumElectricityMarkets.jl")
 
-#Case 1 - Small test system
-#T            = 24
-#path         = joinpath(pwd(), "data_ThreeBus")
+# If the packages below are not yet installed, you must install it once using the following command:
+# Pkg.add("PACKAGE_NAME")
+# After the installation, run the command line below to load the packages.
+using JuMP, BilevelJuMP, CSV, DataFrames, Gurobi
+
+#Case 1 - Small test system (3 buses, 3 hydros, 3 thermals, 3 loads)
+#T            = 24                                 #Number of periods
+#path         = joinpath(pwd(), "data_ThreeBus")   #Case study folder name, where all input data is stored
 #price_makers = ["GENCO1","GENCO2","GENCO3"]
 
 #Case 2 - BR system
