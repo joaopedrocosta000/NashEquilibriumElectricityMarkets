@@ -9,14 +9,14 @@ include("src/NashEquilibriumElectricityMarkets.jl")
 using JuMP, BilevelJuMP, CSV, DataFrames, Gurobi
 
 #Case 1 - Small test system (3 buses, 3 hydros, 3 thermals, 3 loads)
-#T            = 24                                 #Number of periods
-#path         = joinpath(pwd(), "data_ThreeBus")   #Case study folder name, where all input data is stored
-#price_makers = ["GENCO1","GENCO2","GENCO3"]
+T            = 24                                 #Number of periods
+path         = joinpath(pwd(), "data_ThreeBus")   #Case study folder name, where all input data is stored
+price_makers = ["GENCO1","GENCO2","GENCO3"]
 
 #Case 2 - BR system
-T             = 24
-path          = joinpath(pwd(), "data_CaseBR")
-price_makers  = ["GENCO 22","GENCO 43","GENCO 49","GENCO 64"]
+#T             = 24
+#path          = joinpath(pwd(), "data_CaseBR")
+#price_makers  = ["GENCO 22","GENCO 43","GENCO 49","GENCO 64"]
 
 #Nash parameters
 big_N         = 1e7

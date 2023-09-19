@@ -1,4 +1,4 @@
-function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {Ml}
+function clearing!(model::Ml, system::Dict, study::String; T::Int64 = 24) where {Ml}
 
     thermal  = system["thermal"]
     hydro    = system["hydro"]
@@ -21,19 +21,19 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
     @info("Adding ramp constraints")
     NashEquilibriumElectricityMarkets.add_ramp_constraints!(model, T, hydro, thermal)
 
-    @info("Adding generation capacity constraints for mode = market")
+    @info("Adding generation capacity constraints for problem = market")
     NashEquilibriumElectricityMarkets.add_generation_capacity_constraints!(model, T, hydro, thermal, "market")
-    @info("Adding generation capacity constraints for mode = grid")
+    @info("Adding generation capacity constraints for problem = grid")
     NashEquilibriumElectricityMarkets.add_generation_capacity_constraints!(model, T, hydro, thermal, "grid")
 
-    @info("Adding balance constraints for mode = market")
+    @info("Adding balance constraints for problem = market")
     NashEquilibriumElectricityMarkets.add_balance_constraints!(model, T, system, "market")
-    @info("Adding balance constraints for mode = grid")
+    @info("Adding balance constraints for problem = grid")
     NashEquilibriumElectricityMarkets.add_balance_constraints!(model, T, system, "grid")
 
-    @info("Adding hydro constraints for mode = market")
+    @info("Adding hydro constraints for problem = market")
     add_hydro_constraints!(model, T, hydro, maximum_travel_time, "market")
-    @info("Adding hydro constraints for mode = grid")
+    @info("Adding hydro constraints for problem = grid")
     add_hydro_constraints!(model, T, hydro, maximum_travel_time, "grid")
 
     # Controlled flows' limits =======> ADD LATER
@@ -42,7 +42,7 @@ function clearing!(model::Ml, system::Dict, mode::String; T::Int64 = 24) where {
     # Create objective function
     @info("Creating objective function")
     future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(model, T, hydro)
-    grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function(model, T, hydro, thermal, bus, zone, mode)
+    grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function!(model, T, hydro, thermal, bus, zone, study)
 
     @objective(model, Min, grid_and_market_cost_function - future_cost_function)
     # @objective(model, Min, grid_and_market_cost_function)
@@ -72,20 +72,20 @@ function clearing!(model::Ml, system::Dict, QBidt_EQ::Matrix{Float64}, QBidh_EQ:
     @info("Adding ramp constraints")
     NashEquilibriumElectricityMarkets.add_ramp_constraints!(Lower(model), T, hydro, thermal)
 
-    @info("Adding generation bid constraints for mode = market")
+    @info("Adding generation bid constraints for problem = market")
     NashEquilibriumElectricityMarkets.add_generation_bid_constraints!(model, T, hydro, thermal, QBidt_EQ, QBidh_EQ, "market", genco)
 
-    @info("Adding generation bid constraints for mode = grid")
+    @info("Adding generation bid constraints for problem = grid")
     NashEquilibriumElectricityMarkets.add_generation_bid_constraints!(model, T, hydro, thermal, QBidt_EQ, QBidh_EQ, "grid", genco)
 
-    @info("Adding balance constraints for mode = market")
+    @info("Adding balance constraints for problem = market")
     NashEquilibriumElectricityMarkets.add_balance_constraints!(Lower(model), T, system, "market")
-    @info("Adding balance constraints for mode = grid")
+    @info("Adding balance constraints for problem = grid")
     NashEquilibriumElectricityMarkets.add_balance_constraints!(Lower(model), T, system, "grid")
 
-    @info("Adding hydro constraints for mode = market")
+    @info("Adding hydro constraints for problem = market")
     add_hydro_constraints!(Lower(model), T, hydro, maximum_travel_time, "market")
-    @info("Adding hydro constraints for mode = grid")
+    @info("Adding hydro constraints for problem = grid")
     add_hydro_constraints!(Lower(model), T, hydro, maximum_travel_time, "grid")
 
     # Controlled flows' limits =======> ADD LATER
@@ -93,11 +93,66 @@ function clearing!(model::Ml, system::Dict, QBidt_EQ::Matrix{Float64}, QBidh_EQ:
     # Create objective function
     @info("Creating objective function")
     future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(Lower(model), T, hydro)
-    grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function(model, T, hydro, thermal, bus, zone, PBidt_EQ, PBidh_EQ, genco)
+    grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function!(model, T, hydro, thermal, bus, zone, PBidt_EQ, PBidh_EQ, genco)
 
     @objective(Lower(model), Min, grid_and_market_cost_function - future_cost_function)
 
 end
+
+function clearing!(model::Ml, system::Dict, QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64},
+    PBidt_EQ::Matrix{Float64}, PBidh_EQ::Matrix{Float64}; study::String = "nash", T::Int64 = 24) where {Ml}
+
+    thermal  = system["thermal"]
+    hydro    = system["hydro"]
+    line     = system["line"]
+    exchange = system["exchange"]
+    bus      = system["bus"]
+    zone     = system["zone"]
+    load     = system["load"]
+
+    #Setting genco = 99999 in order to clear the whole market based on bids
+    genco = 99999
+
+    @info("Getting maximum travel time")
+    maximum_travel_time = NashEquilibriumElectricityMarkets.get_maximum_travel_time(hydro)
+
+    # Adding decision variables to the bilevel optimization model
+    @info("Adding dispatch variables")
+    NashEquilibriumElectricityMarkets.add_dispatch_variables!(model, T, thermal, hydro, line, exchange, bus, zone)
+    @info("Adding hydro variables")
+    NashEquilibriumElectricityMarkets.add_hydro_variables!(model, T, hydro, maximum_travel_time)
+
+    # Adding constraints to the bilevel optimization model
+    @info("Adding ramp constraints")
+    NashEquilibriumElectricityMarkets.add_ramp_constraints!(model, T, hydro, thermal)
+
+    @info("Adding generation bid constraints for problem = market")
+    NashEquilibriumElectricityMarkets.add_generation_bid_constraints!(model, T, hydro, thermal, QBidt_EQ, QBidh_EQ, "market", genco)
+
+    @info("Adding generation bid constraints for problem = grid")
+    NashEquilibriumElectricityMarkets.add_generation_bid_constraints!(model, T, hydro, thermal, QBidt_EQ, QBidh_EQ, "grid", genco)
+
+    @info("Adding balance constraints for problem = market")
+    NashEquilibriumElectricityMarkets.add_balance_constraints!(model, T, system, "market")
+    @info("Adding balance constraints for problem = grid")
+    NashEquilibriumElectricityMarkets.add_balance_constraints!(model, T, system, "grid")
+
+    @info("Adding hydro constraints for problem = market")
+    add_hydro_constraints!(model, T, hydro, maximum_travel_time, "market")
+    @info("Adding hydro constraints for problem = grid")
+    add_hydro_constraints!(model, T, hydro, maximum_travel_time, "grid")
+
+    # Controlled flows' limits =======> ADD LATER
+
+    # Create objective function
+    @info("Creating objective function")
+    future_cost_function          = NashEquilibriumElectricityMarkets.create_future_cost_function(model, T, hydro)
+    grid_and_market_cost_function = NashEquilibriumElectricityMarkets.create_grid_market_cost_function!(model, T, hydro, thermal, bus, zone, PBidt_EQ, PBidh_EQ; genco = 99999)
+
+    @objective(model, Min, grid_and_market_cost_function - future_cost_function)
+
+end
+
 
 function audited_costs(system::Dict, path::String; T::Int64 = 24)
     model = Model(Gurobi.Optimizer)
@@ -201,8 +256,12 @@ function optimal_bid(system::Dict, owner::Int64, price::String,
     println("Termination status: ", termination_status(model))
     println("Number of solutions: ", result_count(model))
 
-    return round.(JuMP.value.(λt).data, digits = 2), round.(JuMP.value.(λh).data, digits = 2), 
-                round.(JuMP.value.(μt).data, digits = 2), round.(JuMP.value.(μh).data, digits = 2), result_count(model)
+    if result_count(model) > 0
+        return round.(JuMP.value.(model[:λt]).data, digits = 2), round.(JuMP.value.(model[:λh]).data, digits = 2), 
+                round.(JuMP.value.(model[:μt]).data, digits = 2), round.(JuMP.value.(model[:μh]).data, digits = 2), result_count(model)
+    else
+        return 0, 0, 0, 0, result_count(model)
+    end
 end
 
 function nash(system::Dict, path::String; T::Int64 = 24, iteration_max::Int64 = 100, count_revenue_max::Int64 = 5, 
@@ -224,7 +283,7 @@ function nash(system::Dict, path::String; T::Int64 = 24, iteration_max::Int64 = 
     iteration            = 0
     count_revenue        = 0
 
-    vec_output_clearing  = []
+    vec_output_clearing  = Vector{Output}(undef, 0)
     vec_PBidt_EQ         = []
     vec_PBidh_EQ         = []
     vec_QBidt_EQ         = []
@@ -292,8 +351,7 @@ function nash(system::Dict, path::String; T::Int64 = 24, iteration_max::Int64 = 
         QBidh_EQ[:, :] = QBidh_carousel[:, :]
 
         model = Model(Gurobi.Optimizer)
-
-        clearing!(model, system, QBidt_EQ, QBidh_EQ, PBidt_EQ, PBidh_EQ, owner; T = T)
+        clearing!(model, system, QBidt_EQ, QBidh_EQ, PBidt_EQ, PBidh_EQ; study = "nash", T = T)
 
         optimize!(model)
         println("Termination status: ", termination_status(model))
@@ -317,7 +375,7 @@ function nash(system::Dict, path::String; T::Int64 = 24, iteration_max::Int64 = 
        
         println("Equilibrium Vector: ", flag_keep_bid)
         println("Optimal Vector: ", flag_opt)
-        price == "zonal" ? println("Revenue: ", vec_output_clearing[iteration].revenue_zonal) : println("Revenue: ", vec_output_clearing[iteration].revenue_nodal)
+        price == "zonal" ? println("Revenue: ", vec_output_clearing[iteration].revenue[:,"revenue_zonal"]) : println("Revenue: ", vec_output_clearing[iteration].revenue[:,"revenue_nodal"])
         println("Revenue count flag: ", count_revenue)
 
         if all(flag_opt)
@@ -482,9 +540,9 @@ function get_count_revenue(vec_output_clearing::Vector{Output}, price::String)
     for i in 1:iteration
         if !isnothing(vec_output_clearing[i])
             if price == "zonal"
-                push!(revenue, vec_output_clearing[i].revenue_zonal)
+                push!(revenue, vec_output_clearing[i].revenue[:,"revenue_zonal"])
             else
-                push!(revenue, vec_output_clearing[i].revenue_nodal)
+                push!(revenue, vec_output_clearing[i].revenue[:,"revenue_nodal"])
             end
         end
     end

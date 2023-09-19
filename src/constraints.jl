@@ -57,6 +57,12 @@ function add_generation_bid_constraints!(model::Ml, T::Int64,
                                                 thermal::Vector{ThermalGenerator},
                                                 QBidt_EQ::Matrix{Float64}, QBidh_EQ::Matrix{Float64},
                                                 problem::String, genco::Int64) where {Ml}
+    #Assigning the correct model: if GENCO = 99999, cleares market based on carousel bids, else, cleares the market based on the bilevel model
+    if genco == 99999
+        lower_model = model
+    else
+        lower_model = Lower(model)
+    end
                                             
     thermal_owner = thermal[findall(i -> i == genco, getfield.(thermal, :owner))]
     hydro_owner   = hydro[findall(i -> i == genco, getfield.(hydro, :owner))]
@@ -70,25 +76,25 @@ function add_generation_bid_constraints!(model::Ml, T::Int64,
     Jsys = length(hydro_system)
 
     if problem == "grid"        
-        @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_owner[i].number])
-        @constraint(Lower(model), [t = 1:T, i = 1:Igc], Lower(model)[:p_grid][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_grid][t, hydro_owner[j].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], Lower(model)[:g_grid][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
+        @constraint(lower_model, [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ lower_model[:p_grid][t, thermal_owner[i].number])
+        @constraint(lower_model, [t = 1:T, i = 1:Igc], lower_model[:p_grid][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
+        @constraint(lower_model, [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ lower_model[:g_grid][t, hydro_owner[j].number])
+        @constraint(lower_model, [t = 1:T, j = 1:Jgc], lower_model[:g_grid][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
 
-        @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal_system[i].g_min[t] ≤ Lower(model)[:p_grid][t, thermal_system[i].number])
-        @constraint(Lower(model), [t = 1:T, i = 1:Isys], Lower(model)[:p_grid][t, thermal_system[i].number] ≤ QBidt_EQ[t, thermal_system[i].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro_system[j].g_min ≤ Lower(model)[:g_grid][t, hydro_system[j].number])   
-        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], Lower(model)[:g_grid][t, hydro_system[j].number] ≤ QBidh_EQ[t, hydro_system[j].number])   
+        @constraint(lower_model, [t = 1:T, i = 1:Isys], thermal_system[i].g_min[t] ≤ lower_model[:p_grid][t, thermal_system[i].number])
+        @constraint(lower_model, [t = 1:T, i = 1:Isys], lower_model[:p_grid][t, thermal_system[i].number] ≤ QBidt_EQ[t, thermal_system[i].number])
+        @constraint(lower_model, [t = 1:T, j = 1:Jsys], hydro_system[j].g_min ≤ lower_model[:g_grid][t, hydro_system[j].number])   
+        @constraint(lower_model, [t = 1:T, j = 1:Jsys], lower_model[:g_grid][t, hydro_system[j].number] ≤ QBidh_EQ[t, hydro_system[j].number])   
     else
-        @constraint(Lower(model), [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal_owner[i].number])
-        @constraint(Lower(model), [t = 1:T, i = 1:Igc], Lower(model)[:p_market][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ Lower(model)[:g_market][t, hydro_owner[j].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jgc], Lower(model)[:g_market][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
+        @constraint(lower_model, [t = 1:T, i = 1:Igc], thermal_owner[i].g_min[t] ≤ lower_model[:p_market][t, thermal_owner[i].number])
+        @constraint(lower_model, [t = 1:T, i = 1:Igc], lower_model[:p_market][t, thermal_owner[i].number] ≤ Upper(model)[:μt][t, thermal_owner[i].number])
+        @constraint(lower_model, [t = 1:T, j = 1:Jgc], hydro_owner[j].g_min ≤ lower_model[:g_market][t, hydro_owner[j].number])
+        @constraint(lower_model, [t = 1:T, j = 1:Jgc], lower_model[:g_market][t, hydro_owner[j].number] ≤ Upper(model)[:μh][t, hydro_owner[j].number])
 
-        @constraint(Lower(model), [t = 1:T, i = 1:Isys], thermal[i].g_min[t] ≤ Lower(model)[:p_market][t, thermal[i].number])
-        @constraint(Lower(model), [t = 1:T, i = 1:Isys], Lower(model)[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
-        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], hydro[j].g_min ≤ Lower(model)[:g_market][t, hydro[j].number])   
-        @constraint(Lower(model), [t = 1:T, j = 1:Jsys], Lower(model)[:g_market][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
+        @constraint(lower_model, [t = 1:T, i = 1:Isys], thermal[i].g_min[t] ≤ lower_model[:p_market][t, thermal[i].number])
+        @constraint(lower_model, [t = 1:T, i = 1:Isys], lower_model[:p_market][t, thermal[i].number] ≤ QBidt_EQ[t, thermal[i].number])
+        @constraint(lower_model, [t = 1:T, j = 1:Jsys], hydro[j].g_min ≤ lower_model[:g_market][t, hydro[j].number])   
+        @constraint(lower_model, [t = 1:T, j = 1:Jsys], lower_model[:g_market][t, hydro[j].number] ≤ QBidh_EQ[t, hydro[j].number])   
     end
 end
 
